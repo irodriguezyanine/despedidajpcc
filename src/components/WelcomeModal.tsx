@@ -49,14 +49,19 @@ export default function WelcomeModal() {
             className="relative w-full max-w-2xl rounded-3xl p-10 sm:p-14 text-center border border-white/10 shadow-2xl"
             style={{ backgroundColor: "#0c4a6e" }}
           >
-            <h2 className="font-display text-2xl sm:text-3xl md:text-4xl text-white leading-tight mb-6">
-              BIENVENIDO A LA DESPEDIDA DE SOLTEROS DE JUAN PABLO
+            <img
+              src="/logo-alamicos.png"
+              alt="ALAMICOS R.F.C"
+              className="mx-auto mb-6 w-32 h-32 sm:w-40 sm:h-40 object-contain"
+            />
+            <h2 className="font-display text-2xl sm:text-3xl md:text-4xl text-white leading-tight mb-4">
+              BIENVENIDOS A UNA DESPEDIDA MÁS DE ALAMICOS R.F.C
             </h2>
-            <p className="font-body text-lg text-white/90 mb-2">
-              ALAMICOS R.F.C · Reggaeton Fútbol Club
+            <p className="font-body text-lg text-white/90 mb-4">
+              Se nos casa nuestro querido goleador
             </p>
             <p className="font-body text-lg sm:text-xl md:text-2xl text-white leading-relaxed mb-10">
-              QUEDAN <span className="font-bold text-amber-300">{days}</span> DÍAS PARA LOMAS DE MANTAGUA · 20-22 FEBRERO 2026
+              QUEDAN <span className="font-bold text-amber-300">{days}</span> DÍAS PARA UNA ÚLTIMA VUELTA !
             </p>
             <motion.button
               onClick={handleEnter}
