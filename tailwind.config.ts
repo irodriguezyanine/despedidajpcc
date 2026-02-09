@@ -13,6 +13,8 @@ const config: Config = {
         "sunset-orange": "#ff9900",
         "deep-purple": "#2d004d",
         "miami-blue": "#00ffff",
+        "beach-teal": "#0d9488",
+        "sand": "#fef3c7",
         background: "#0a0612",
         foreground: "#fafafa",
       },
@@ -40,7 +42,7 @@ const config: Config = {
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
-        "gradient-sunset": "linear-gradient(135deg, #2d004d 0%, #ff9900 50%, #ff00ff 100%)",
+        "gradient-sunset": "linear-gradient(135deg, #0c4a6e 0%, #0d9488 40%, #fef3c7 100%)",
       },
       boxShadow: {
         "neon-pink": "0 0 20px rgba(255, 0, 255, 0.6), 0 0 40px rgba(255, 0, 255, 0.3)",
