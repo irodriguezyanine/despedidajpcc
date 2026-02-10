@@ -17,8 +17,8 @@ const TABLE_MARGIN = 20;
 const BALL_R = 10;
 const CUP_R = 22;
 const FRICTION = 0.985;
-const PULL_SCALE = 0.11; // arrastrar para atrás: más distancia = más fuerza
-const MAX_SPEED = 20;    // al máximo debe llegar arriba de la cancha
+const PULL_SCALE = 0.10; // 70–90% del arrastre llega al área de vasos; 100% se pasa
+const MAX_SPEED = 26;    // máxima potencia: bola se pasa por encima de la cancha (no punto)
 const MIN_PULL = 22;     // mínimo: no debe pasar la mitad de cancha
 
 // Mesa: zona jugable (nosotros abajo, vasos arriba)
@@ -120,8 +120,16 @@ export default function BeerPong() {
     y2: number;
   } | null>(null);
   const [lastResult, setLastResult] = useState<"hit" | "miss" | null>(null);
+  const [showWinModal, setShowWinModal] = useState(false);
 
   const remainingCups = TOTAL_CUPS - cupsHit.length;
+
+  // Al acertar todos los vasos: mostrar modal de victoria (no dejar la partida parada)
+  useEffect(() => {
+    if (remainingCups === 0 && cupsHit.length === TOTAL_CUPS && !gameOver) {
+      setShowWinModal(true);
+    }
+  }, [remainingCups, cupsHit.length, gameOver]);
 
   useEffect(() => {
     cupsHitRef.current = cupsHit;
@@ -442,10 +450,26 @@ export default function BeerPong() {
 
   const startNewGame = useCallback(() => {
     setGameOver(false);
+    setShowWinModal(false);
     setLives(3);
     setCupsHit([]);
     cupsHitRef.current = [];
     setLastResult(null);
+    const g = gameRef.current;
+    g.x = BALL_START_X;
+    g.y = BALL_START_Y;
+    g.vx = 0;
+    g.vy = 0;
+  }, []);
+
+  // Doblar la apuesta: nueva ronda (6 vasos, 3 vidas), se mantienen jugadores y puntajes
+  const startNewRound = useCallback(() => {
+    setShowWinModal(false);
+    setLives(3);
+    setCupsHit([]);
+    cupsHitRef.current = [];
+    setLastResult(null);
+    setIsFlying(false);
     const g = gameRef.current;
     g.x = BALL_START_X;
     g.y = BALL_START_Y;
@@ -624,7 +648,22 @@ export default function BeerPong() {
             )}
           </div>
 
-          {gameOver ? (
+          {showWinModal ? (
+            <div className="rounded-xl bg-black/50 border-2 border-amber-500/50 p-8 text-center">
+              <p className="font-display text-2xl text-amber-400 mb-2">¡GANASTE!</p>
+              <p className="font-body text-white/90 mb-6">
+                ¿Quieres doblar la apuesta?
+              </p>
+              <motion.button
+                onClick={startNewRound}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.98 }}
+                className="px-8 py-4 rounded-xl font-display text-lg text-white bg-amber-500 border border-amber-400/50 hover:bg-amber-600"
+              >
+                Jugar de nuevo
+              </motion.button>
+            </div>
+          ) : gameOver ? (
             <div className="rounded-xl bg-black/50 border-2 border-red-500/50 p-8 text-center">
               <p className="font-display text-2xl text-red-400 mb-4">GAME OVER</p>
               <p className="font-body text-white/90 mb-1">
