@@ -1,23 +1,47 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+} from "react";
 import { motion, AnimatePresence } from "framer-motion";
+
+const LEADERBOARD_KEY = "alamicos_beerpong_leaderboard";
+
+const CANVAS_W = 420;
+const CANVAS_H = 280;
+const GRAVITY = 0.00042;
+const BOUNCE = 0.6;
+const BALL_R = 6;
+const CUP_R = 14;
+const HIT_RADIUS_W = BALL_R / CANVAS_W + CUP_R / CANVAS_W; // mundo
+const TABLE_Y = 0.82; // mundo 0-1
+const BALL_START = { x: 0.12, y: 0.78 };
+const MAX_FORCE = 0.018;
+const MIN_FORCE = 0.004;
+const FORCE_SCALE = 0.00012;
 
 const TOTAL_CUPS = 6;
 const CUP_ROWS = [3, 2, 1];
 
-// Posiciones de cada vaso en % del área de juego (x, y) — triángulo clásico
-const CUP_CENTERS: { x: number; y: number }[] = [
-  { x: 25, y: 18 },
-  { x: 50, y: 18 },
-  { x: 75, y: 18 },
-  { x: 37.5, y: 28 },
-  { x: 62.5, y: 28 },
-  { x: 50, y: 38 },
-];
-
-const HIT_RADIUS = 14; // % — radio para considerar que la pelota "entró" en un vaso
-const BALL_START = { x: 50, y: 88 };
+// Posiciones vasos en mundo (0-1), vista 2D lado derecho
+const CUP_CENTERS: { x: number; y: number }[] = (() => {
+  const out: { x: number; y: number }[] = [];
+  let i = 0;
+  for (let row = 0; row < CUP_ROWS.length; row++) {
+    const n = CUP_ROWS[row];
+    const baseX = 0.78 + row * 0.02;
+    const baseY = 0.22 + row * 0.06;
+    for (let j = 0; j < n; j++) {
+      const offsetX = (j - (n - 1) / 2) * 0.045;
+      out.push({ x: baseX + offsetX, y: baseY });
+      i++;
+    }
+  }
+  return out;
+})();
 
 export interface Participant {
   id: string;
@@ -29,100 +53,429 @@ function generateId() {
   return `p-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function loadLeaderboard(): Participant[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(LEADERBOARD_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLeaderboard(data: Participant[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(data));
+  } catch {}
+}
+
 export default function BeerPong() {
-  const gameAreaRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const gameRef = useRef<{
+    ballX: number;
+    ballY: number;
+    ballVx: number;
+    ballVy: number;
+    lastTime: number;
+    rafId: number | null;
+  }>({
+    ballX: BALL_START.x,
+    ballY: BALL_START.y,
+    ballVx: 0,
+    ballVy: 0,
+    lastTime: 0,
+    rafId: null,
+  });
+  const cupsHitRef = useRef<number[]>([]);
+  const currentPlayerIdRef = useRef<string | null>(null);
+  const participantsRef = useRef<Participant[]>([]);
+  const dragEndRef = useRef<{ x: number; y: number } | null>(null);
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  cupsHitRef.current = cupsHit;
+  dragStartRef.current = dragStart;
+  currentPlayerIdRef.current = currentPlayerId;
+  participantsRef.current = participants;
+
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [cupsHit, setCupsHit] = useState<number[]>([]);
-  const [ballPos, setBallPos] = useState(BALL_START);
-  const [aimPoint, setAimPoint] = useState<{ x: number; y: number } | null>(null);
+  const [lives, setLives] = useState(3);
+  const [gameOver, setGameOver] = useState(false);
   const [isFlying, setIsFlying] = useState(false);
-  const [lastThrow, setLastThrow] = useState<"hit" | "miss" | null>(null);
+  const [isAiming, setIsAiming] = useState(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [dragEnd, setDragEnd] = useState<{ x: number; y: number } | null>(null);
+  const [lastResult, setLastResult] = useState<"hit" | "miss" | null>(null);
+  const [power, setPower] = useState(0);
 
   const remainingCups = TOTAL_CUPS - cupsHit.length;
+
+  // Cargar leaderboard al montar
+  useEffect(() => {
+    setParticipants(loadLeaderboard());
+  }, []);
+
+  // Persistir cuando cambian participantes
+  useEffect(() => {
+    if (participants.length === 0) return;
+    saveLeaderboard(participants);
+  }, [participants]);
 
   const addParticipant = useCallback(() => {
     const name = newName.trim();
     if (!name) return;
+    const existing = participants.find(
+      (p) => p.name.toLowerCase() === name.toLowerCase()
+    );
+    if (existing) {
+      setCurrentPlayerId(existing.id);
+      setNewName("");
+      return;
+    }
     const id = generateId();
-    setParticipants((prev) => [...prev, { id, name, score: 0 }]);
+    const next = [...participants, { id, name, score: 0 }];
+    setParticipants(next);
     if (!currentPlayerId) setCurrentPlayerId(id);
     setNewName("");
-  }, [newName, currentPlayerId]);
+  }, [newName, currentPlayerId, participants]);
 
-  const handleGameAreaClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (isFlying || remainingCups <= 0 || !gameAreaRef.current) return;
-      const rect = gameAreaRef.current.getBoundingClientRect();
-      const x = ((e.clientX - rect.left) / rect.width) * 100;
-      const y = ((e.clientY - rect.top) / rect.height) * 100;
-      // Solo apuntar en la zona de vasos (mitad superior)
-      if (y < 55) {
-        setAimPoint({ x, y });
+  const worldToScreen = useCallback((wx: number, wy: number) => {
+    return {
+      x: wx * CANVAS_W,
+      y: (1 - wy) * CANVAS_H,
+    };
+  }, []);
+
+  const screenToWorld = useCallback((sx: number, sy: number) => {
+    return {
+      x: sx / CANVAS_W,
+      y: 1 - sy / CANVAS_H,
+    };
+  }, []);
+
+  const draw = useCallback(
+    (ctx: CanvasRenderingContext2D) => {
+      const g = gameRef.current!;
+      ctx.fillStyle = "#0f1419";
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+      const ty = worldToScreen(0.5, TABLE_Y);
+      const tableH = 12;
+      const grad = ctx.createLinearGradient(0, ty.y, 0, CANVAS_H);
+      grad.addColorStop(0, "#1a2332");
+      grad.addColorStop(1, "#0d1219");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(0, ty.y, CANVAS_W, tableH);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.15)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      CUP_CENTERS.forEach((c, i) => {
+        if (cupsHitRef.current.includes(i)) return;
+        const s = worldToScreen(c.x, c.y);
+        const r = CUP_R;
+        const cupGrad = ctx.createRadialGradient(
+          s.x - r / 2,
+          s.y - r / 2,
+          0,
+          s.x,
+          s.y,
+          r
+        );
+        cupGrad.addColorStop(0, "#7f1d1d");
+        cupGrad.addColorStop(0.6, "#991b1b");
+        cupGrad.addColorStop(1, "#450a0a");
+        ctx.fillStyle = cupGrad;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,200,200,0.4)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+
+      const ballS = worldToScreen(g.ballX, g.ballY);
+      const ballGrad = ctx.createRadialGradient(
+        ballS.x - 3,
+        ballS.y - 3,
+        0,
+        ballS.x,
+        ballS.y,
+        BALL_R + 2
+      );
+      ballGrad.addColorStop(0, "#fef3c7");
+      ballGrad.addColorStop(0.6, "#fde68a");
+      ballGrad.addColorStop(1, "#f59e0b");
+      ctx.fillStyle = ballGrad;
+      ctx.beginPath();
+      ctx.arc(ballS.x, ballS.y, BALL_R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(251,191,36,0.6)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      if (isAiming && dragStart && dragEnd) {
+        const p1 = worldToScreen(dragStart.x, dragStart.y);
+        const p2 = worldToScreen(dragEnd.x, dragEnd.y);
+        ctx.strokeStyle = "rgba(251,191,36,0.85)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
     },
-    [isFlying, remainingCups]
+    [isAiming, dragStart, dragEnd, worldToScreen]
   );
 
-  const throwBall = useCallback(() => {
-    if (isFlying || remainingCups <= 0 || !currentPlayerId) return;
-    const target = aimPoint || { x: 50, y: 25 };
-    setAimPoint(null);
-    setIsFlying(true);
-    setLastThrow(null);
+  const gameLoop = useCallback(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!ctx || !canvas) return;
 
-    // Pequeño factor aleatorio para que no sea perfecto
-    const endX = target.x + (Math.random() - 0.5) * 12;
-    const endY = target.y + (Math.random() - 0.5) * 10;
+    const g = gameRef.current;
+    const now = performance.now();
+    const dt = Math.min((now - g.lastTime) / 1000, 0.05);
+    g.lastTime = now;
 
-    setBallPos({ x: endX, y: endY });
+    g.ballX += g.ballVx * dt * 60;
+    g.ballY += g.ballVy * dt * 60;
+    g.ballVy -= GRAVITY * dt * 60;
 
-    setTimeout(() => {
-      let hitCup: number | null = null;
-      let minDist = Infinity;
-      for (let i = 0; i < TOTAL_CUPS; i++) {
-        if (cupsHit.includes(i)) continue;
-        const c = CUP_CENTERS[i];
-        const dist = Math.hypot(endX - c.x, endY - c.y);
-        if (dist < HIT_RADIUS && dist < minDist) {
-          minDist = dist;
-          hitCup = i;
-        }
-      }
+    if (g.ballY <= TABLE_Y && g.ballVy < 0) {
+      g.ballY = TABLE_Y;
+      g.ballVy *= -BOUNCE;
+      g.ballVx *= 0.95;
+    }
 
-      if (hitCup !== null) {
-        setCupsHit((prev) => [...prev, hitCup!].sort((a, b) => a - b));
+    const curCups = cupsHitRef.current;
+    const curPlayer = currentPlayerIdRef.current;
+    const curParts = participantsRef.current;
+
+    for (let i = 0; i < TOTAL_CUPS; i++) {
+      if (curCups.includes(i)) continue;
+      const c = CUP_CENTERS[i];
+      const dx = g.ballX - c.x;
+      const dy = g.ballY - c.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < HIT_RADIUS_W) {
+        const nextCups = [...curCups, i].sort((a, b) => a - b);
+        cupsHitRef.current = nextCups;
+        setCupsHit(nextCups);
         setParticipants((prev) =>
-          prev.map((p) =>
-            p.id === currentPlayerId ? { ...p, score: p.score + 1 } : p
-          )
+          curPlayer
+            ? prev.map((p) =>
+                p.id === curPlayer ? { ...p, score: p.score + 1 } : p
+              )
+            : prev
         );
-        setLastThrow("hit");
-      } else {
-        setLastThrow("miss");
+        setLastResult("hit");
+        g.ballVx = 0;
+        g.ballVy = 0;
+        g.ballX = BALL_START.x;
+        g.ballY = BALL_START.y;
+        setIsFlying(false);
+        if (g.rafId != null) cancelAnimationFrame(g.rafId);
+        g.rafId = null;
+        draw(ctx);
+        return;
       }
+    }
 
-      setBallPos(BALL_START);
+    if (
+      g.ballX < -0.05 ||
+      g.ballX > 1.05 ||
+      g.ballY < -0.05 ||
+      g.ballY > 1.05
+    ) {
+      setLastResult("miss");
+      setLives((prev) => {
+        const next = prev - 1;
+        if (next <= 0) setGameOver(true);
+        return next;
+      });
+      g.ballVx = 0;
+      g.ballVy = 0;
+      g.ballX = BALL_START.x;
+      g.ballY = BALL_START.y;
       setIsFlying(false);
-    }, 700);
-  }, [
-    isFlying,
-    remainingCups,
-    currentPlayerId,
-    aimPoint,
-    cupsHit,
-  ]);
+      if (g.rafId != null) cancelAnimationFrame(g.rafId);
+      g.rafId = null;
+      draw(ctx);
+      return;
+    }
+
+    draw(ctx);
+    g.rafId = requestAnimationFrame(gameLoop);
+  }, [draw]);
+
+  useEffect(() => {
+    if (!isFlying) return;
+    gameRef.current.lastTime = performance.now();
+    gameRef.current.rafId = requestAnimationFrame(gameLoop);
+    return () => {
+      if (gameRef.current.rafId != null)
+        cancelAnimationFrame(gameRef.current.rafId);
+    };
+  }, [isFlying, gameLoop]);
+
+  const getCanvasRect = useCallback(() => {
+    return canvasRef.current?.getBoundingClientRect();
+  }, []);
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (isFlying || gameOver || remainingCups <= 0 || !currentPlayerId) return;
+      const rect = getCanvasRect();
+      if (!rect) return;
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      const wy = 1 - y;
+      const wx = x;
+      const dx = wx - BALL_START.x;
+      const dy = wy - BALL_START.y;
+      if (Math.hypot(dx, dy) < 0.08) {
+        setIsAiming(true);
+        setDragStart({ x: wx, y: wy });
+        setDragEnd({ x: wx, y: wy });
+      }
+    },
+    [isFlying, gameOver, remainingCups, currentPlayerId, getCanvasRect]
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!isAiming || !dragStart) return;
+      const rect = getCanvasRect();
+      if (!rect) return;
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      const wy = 1 - y;
+      const wx = x;
+      const pt = { x: wx, y: wy };
+      setDragEnd(pt);
+      dragEndRef.current = pt;
+      const dx = dragStart.x - wx;
+      const dy = dragStart.y - wy;
+      const force = Math.hypot(dx, dy) * FORCE_SCALE;
+      const pct = Math.min(100, Math.max(0, (force / MAX_FORCE) * 100));
+      setPower(pct);
+    },
+    [isAiming, dragStart, getCanvasRect]
+  );
+
+  const doLaunch = useCallback(
+    (end: { x: number; y: number }) => {
+      const start = dragStart;
+      if (!start) return;
+      const dx = start.x - end.x;
+      const dy = start.y - end.y;
+      let force = Math.hypot(dx, dy) * FORCE_SCALE;
+      force = Math.max(MIN_FORCE, Math.min(MAX_FORCE, force));
+      const angle = Math.atan2(dy, dx);
+      const vx = Math.cos(angle) * force;
+      const vy = Math.sin(angle) * force;
+
+      const g = gameRef.current;
+      g.ballX = BALL_START.x;
+      g.ballY = BALL_START.y;
+      g.ballVx = vx;
+      g.ballVy = vy;
+
+      dragStartRef.current = null;
+      dragEndRef.current = null;
+      setIsAiming(false);
+      setDragStart(null);
+      setDragEnd(null);
+      setPower(0);
+      setLastResult(null);
+      setIsFlying(true);
+    },
+    [dragStart]
+  );
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      if (!isAiming || !dragStart) {
+        setIsAiming(false);
+        setDragStart(null);
+        setDragEnd(null);
+        dragEndRef.current = null;
+        setPower(0);
+        return;
+      }
+      const end = dragEndRef.current ?? dragEnd ?? dragStart;
+      doLaunch(end);
+    },
+    [isAiming, dragStart, dragEnd, doLaunch]
+  );
+
+  useEffect(() => {
+    const onUp = () => {
+      const start = dragStartRef.current;
+      const end = dragEndRef.current;
+      if (!start) return;
+      const pt = end ?? start;
+      setDragStart(null);
+      setDragEnd(null);
+      dragEndRef.current = null;
+      setPower(0);
+      const dx = start.x - pt.x;
+      const dy = start.y - pt.y;
+      const force = Math.hypot(dx, dy) * FORCE_SCALE;
+      if (force < MIN_FORCE * 0.5) {
+        setIsAiming(false);
+        return;
+      }
+      const f = Math.max(MIN_FORCE, Math.min(MAX_FORCE, force));
+      const angle = Math.atan2(dy, dx);
+      const g = gameRef.current;
+      g.ballX = BALL_START.x;
+      g.ballY = BALL_START.y;
+      g.ballVx = Math.cos(angle) * f;
+      g.ballVy = Math.sin(angle) * f;
+      dragStartRef.current = null;
+      setIsAiming(false);
+      setLastResult(null);
+      setIsFlying(true);
+    };
+    window.addEventListener("pointerup", onUp);
+    return () => window.removeEventListener("pointerup", onUp);
+  }, []);
 
   const resetCups = useCallback(() => {
     setCupsHit([]);
-    setLastThrow(null);
-    setBallPos(BALL_START);
-    setAimPoint(null);
+    setLastResult(null);
+    gameRef.current.ballX = BALL_START.x;
+    gameRef.current.ballY = BALL_START.y;
+    gameRef.current.ballVx = 0;
+    gameRef.current.ballVy = 0;
   }, []);
 
-  const cupId = (row: number, i: number) =>
-    CUP_ROWS.slice(0, row).reduce((a, b) => a + b, 0) + i;
+  const startNewGame = useCallback(() => {
+    setGameOver(false);
+    setLives(3);
+    setCupsHit([]);
+    setLastResult(null);
+    gameRef.current.ballX = BALL_START.x;
+    gameRef.current.ballY = BALL_START.y;
+    gameRef.current.ballVx = 0;
+    gameRef.current.ballVy = 0;
+  }, []);
+
+  useEffect(() => {
+    const ctx = canvasRef.current?.getContext("2d");
+    if (ctx && !isFlying) draw(ctx);
+  }, [draw, isFlying, cupsHit, lives]);
 
   const sortedParticipants = [...participants].sort((a, b) => b.score - a.score);
 
@@ -151,16 +504,10 @@ export default function BeerPong() {
           viewport={{ once: true }}
           className="text-center text-white/60 font-body text-sm mb-6"
         >
-          Apunta con un clic · Lanza el botón · Suma puntos
+          Arrastra desde la pelota hacia atrás para apuntar y regular la fuerza · 3 vidas
         </motion.p>
 
-        {/* Nombre y unirse */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="flex flex-wrap gap-2 mb-4"
-        >
+        <div className="flex flex-wrap gap-2 mb-4">
           <input
             type="text"
             value={newName}
@@ -176,17 +523,16 @@ export default function BeerPong() {
           >
             Unirse
           </button>
-        </motion.div>
+        </div>
 
-        {/* Tabla de participantes */}
         {participants.length > 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="glass-card rounded-xl p-4 mb-6 border border-white/20"
+            className="glass-card rounded-xl p-4 mb-4 border border-white/20"
           >
             <p className="font-display text-sm text-white/80 mb-3 uppercase tracking-wider">
-              Participantes
+              Tabla de puntajes (guardados)
             </p>
             <div className="overflow-x-auto">
               <table className="w-full text-left font-body text-sm">
@@ -249,9 +595,26 @@ export default function BeerPong() {
           viewport={{ once: true }}
           className="glass-card rounded-2xl p-6 sm:p-8 border-2 border-red-500/30 shadow-[0_0_40px_rgba(220,38,38,0.15)]"
         >
-          <div className="flex justify-between items-center mb-4">
-            <div className="font-mono text-white/70 text-sm">
-              Vasos: {remainingCups}/{TOTAL_CUPS}
+          <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+            <div className="flex items-center gap-4">
+              <div className="font-mono text-white/70 text-sm">
+                Vasos: {remainingCups}/{TOTAL_CUPS}
+              </div>
+              <div className="flex items-center gap-1">
+                {[1, 2, 3].map((i) => (
+                  <span
+                    key={i}
+                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-mono ${
+                      i <= lives
+                        ? "bg-red-500/80 text-white"
+                        : "bg-white/10 text-white/30"
+                    }`}
+                    title="Vidas"
+                  >
+                    {i <= lives ? "♥" : "♡"}
+                  </span>
+                ))}
+              </div>
             </div>
             {currentPlayerId && (
               <div className="font-body text-sm text-white/80">
@@ -263,155 +626,101 @@ export default function BeerPong() {
             )}
           </div>
 
-          <div
-            ref={gameAreaRef}
-            role="button"
-            tabIndex={0}
-            onClick={handleGameAreaClick}
-            className="relative mx-auto rounded-xl overflow-hidden border-2 border-white/20 bg-black/40 cursor-crosshair select-none touch-none"
-            style={{ width: "280px", height: "360px" }}
-          >
-            {/* Vasos */}
-            <div
-              className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none"
-              style={{ top: "12%" }}
-            >
-              {CUP_ROWS.map((n, row) => (
-                <div
-                  key={row}
-                  className="flex gap-3"
-                  style={{ marginLeft: `${row * 14}px` }}
-                >
-                  {Array.from({ length: n }).map((_, i) => {
-                    const id = cupId(row, i);
-                    const hit = cupsHit.includes(id);
-                    return (
-                      <motion.div
-                        key={`${row}-${i}`}
-                        initial={{ scale: 1, opacity: 1 }}
-                        animate={
-                          hit
-                            ? { scale: 0, opacity: 0, y: 20 }
-                            : { scale: 1, opacity: 1 }
-                        }
-                        transition={{ duration: 0.3 }}
-                        className="w-10 h-10 rounded-full border-2 border-red-500/80 bg-red-900/60 flex items-center justify-center shrink-0"
-                        style={{
-                          boxShadow: "inset 0 -4px 8px rgba(0,0,0,0.4)",
-                        }}
-                      >
-                        {!hit && (
-                          <span className="text-[10px] text-white/60 font-mono">
-                            🍺
-                          </span>
-                        )}
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              ))}
+          {gameOver ? (
+            <div className="rounded-xl bg-black/50 border-2 border-red-500/50 p-8 text-center">
+              <p className="font-display text-2xl text-red-400 mb-2">
+                Game Over
+              </p>
+              <p className="font-body text-white/80 mb-6">
+                Te quedaste sin vidas. Los puntajes siguen guardados.
+              </p>
+              <motion.button
+                onClick={startNewGame}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.98 }}
+                className="px-8 py-4 rounded-xl font-display text-lg text-white bg-red-500 border border-red-400/50 hover:bg-red-600 transition-colors"
+              >
+                JUGAR DE NUEVO
+              </motion.button>
             </div>
+          ) : (
+            <>
+              {isAiming && power > 0 && (
+                <div className="mb-3">
+                  <div className="flex justify-between text-xs text-white/60 font-mono mb-1">
+                    <span>Fuerza</span>
+                    <span>{Math.round(power)}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full bg-gradient-to-r from-amber-500 to-red-500"
+                      initial={false}
+                      animate={{ width: `${power}%` }}
+                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    />
+                  </div>
+                </div>
+              )}
 
-            {/* Línea de puntería (viewBox 0 0 100 100 = %) */}
-            {aimPoint && !isFlying && (
-              <svg
-                className="absolute inset-0 w-full h-full pointer-events-none"
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
+              <div
+                className="relative mx-auto rounded-xl overflow-hidden border-2 border-white/20 bg-black/40 touch-none"
+                style={{ width: CANVAS_W, height: CANVAS_H }}
               >
-                <line
-                  x1={50}
-                  y1={88}
-                  x2={aimPoint.x}
-                  y2={aimPoint.y}
-                  stroke="rgba(251,191,36,0.8)"
-                  strokeWidth="1.5"
-                  strokeDasharray="3 3"
+                <canvas
+                  ref={canvasRef}
+                  width={CANVAS_W}
+                  height={CANVAS_H}
+                  className="w-full h-full block cursor-crosshair"
+                  style={{ maxWidth: "100%", height: "auto" }}
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onPointerLeave={handlePointerUp}
                 />
-                <circle
-                  cx={aimPoint.x}
-                  cy={aimPoint.y}
-                  r="3"
-                  fill="rgba(251,191,36,0.4)"
-                  stroke="rgba(251,191,36,0.9)"
-                  strokeWidth="0.8"
-                />
-              </svg>
-            )}
+              </div>
 
-            {/* Pelota */}
-            <motion.div
-              className="absolute w-5 h-5 rounded-full bg-white border-2 border-amber-400/50 pointer-events-none"
-              style={{
-                left: `calc(${ballPos.x}% - 10px)`,
-                top: `${ballPos.y}%`,
-                boxShadow:
-                  "0 0 12px rgba(255,255,255,0.6), 0 0 24px rgba(251,191,36,0.3)",
-              }}
-              transition={{
-                duration: isFlying ? 0.7 : 0.2,
-                ease: [0.25, 0.1, 0.25, 1],
-              }}
-            />
+              <p className="text-center text-white/50 text-xs font-body mt-2">
+                Arrastra desde la pelota hacia atrás y suelta para lanzar
+              </p>
 
-            <div
-              className="absolute left-0 right-0 h-0.5 bg-white/30 pointer-events-none"
-              style={{ bottom: "16%" }}
-            />
-          </div>
+              <AnimatePresence mode="wait">
+                {lastResult === "hit" && (
+                  <motion.p
+                    key="hit"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="text-center text-amber-400 font-display text-lg mt-3"
+                  >
+                    ¡Punto!
+                  </motion.p>
+                )}
+                {lastResult === "miss" && (
+                  <motion.p
+                    key="miss"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="text-center text-red-400 font-body text-sm mt-3"
+                  >
+                    Fallo · -1 vida
+                  </motion.p>
+                )}
+              </AnimatePresence>
 
-          <p className="text-center text-white/50 text-xs font-body mt-2">
-            Clic en la zona de vasos para apuntar
-          </p>
-
-          <AnimatePresence mode="wait">
-            {lastThrow === "hit" && (
-              <motion.p
-                key="hit"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                className="text-center text-amber-400 font-display text-lg mt-3"
-              >
-                ¡Punto!
-              </motion.p>
-            )}
-            {lastThrow === "miss" && (
-              <motion.p
-                key="miss"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                className="text-center text-white/50 font-body text-sm mt-3"
-              >
-                Casi…
-              </motion.p>
-            )}
-          </AnimatePresence>
-
-          <div className="flex flex-wrap justify-center gap-3 mt-6">
-            <motion.button
-              onClick={throwBall}
-              disabled={
-                isFlying ||
-                remainingCups <= 0 ||
-                !currentPlayerId
-              }
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="px-8 py-4 rounded-xl font-display text-lg tracking-wide text-white bg-red-500 border-2 border-red-400/50 shadow-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              LANZAR PELOTA
-            </motion.button>
-            <motion.button
-              onClick={resetCups}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="px-6 py-4 rounded-xl font-body text-sm text-white/90 border border-white/30 hover:bg-white/10 transition-colors"
-            >
-              Reiniciar vasos
-            </motion.button>
-          </div>
+              <div className="flex flex-wrap justify-center gap-3 mt-6">
+                <motion.button
+                  onClick={resetCups}
+                  disabled={isFlying}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="px-6 py-4 rounded-xl font-body text-sm text-white/90 border border-white/30 hover:bg-white/10 transition-colors disabled:opacity-50"
+                >
+                  Reiniciar vasos
+                </motion.button>
+              </div>
+            </>
+          )}
         </motion.div>
       </div>
     </section>
