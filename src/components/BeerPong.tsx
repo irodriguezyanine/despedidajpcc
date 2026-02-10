@@ -17,8 +17,9 @@ const TABLE_MARGIN = 20;
 const BALL_R = 10;
 const CUP_R = 22;
 const FRICTION = 0.985;
-const SWIPE_SCALE = 0.12;
-const MAX_SPEED = 14;
+const PULL_SCALE = 0.08; // arrastrar para atrás: más distancia = más fuerza
+const MAX_SPEED = 16;
+const MIN_PULL = 20; // mínimo arrastre para lanzar
 
 // Mesa: zona jugable (nosotros abajo, vasos arriba)
 const TABLE_LEFT = TABLE_MARGIN;
@@ -97,11 +98,11 @@ export default function BeerPong() {
     lastTime: 0,
     rafId: null,
   });
-  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
-  const swipeEndRef = useRef<{ x: number; y: number } | null>(null);
+  const dragEndRef = useRef<{ x: number; y: number } | null>(null);
   const cupsHitRef = useRef<number[]>([]);
   const currentPlayerIdRef = useRef<string | null>(null);
   const participantsRef = useRef<Participant[]>([]);
+  const ballSelectedRef = useRef(false);
 
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
@@ -110,7 +111,8 @@ export default function BeerPong() {
   const [lives, setLives] = useState(3);
   const [gameOver, setGameOver] = useState(false);
   const [isFlying, setIsFlying] = useState(false);
-  const [swipeLine, setSwipeLine] = useState<{
+  const [ballSelected, setBallSelected] = useState(false);
+  const [pullLine, setPullLine] = useState<{
     x1: number;
     y1: number;
     x2: number;
@@ -121,6 +123,7 @@ export default function BeerPong() {
   cupsHitRef.current = cupsHit;
   currentPlayerIdRef.current = currentPlayerId;
   participantsRef.current = participants;
+  ballSelectedRef.current = ballSelected;
 
   const remainingCups = TOTAL_CUPS - cupsHit.length;
 
@@ -168,13 +171,40 @@ export default function BeerPong() {
       ctx.fillStyle = "#0d1b24";
       ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-      // Mesa (verde tipo fieltro)
+      // Mesa (verde tipo cancha de fútbol)
       ctx.fillStyle = "#1b5e3f";
       ctx.beginPath();
       ctx.roundRect(TABLE_LEFT, TABLE_TOP, TABLE_RIGHT - TABLE_LEFT, TABLE_BOTTOM - TABLE_TOP, 8);
       ctx.fill();
-      ctx.strokeStyle = "#2e7d5a";
+
+      // Líneas blancas tipo cancha (soccer)
+      ctx.strokeStyle = "rgba(255,255,255,0.9)";
+      ctx.lineWidth = 2.5;
+      const tableW = TABLE_RIGHT - TABLE_LEFT;
+      const tableH = TABLE_BOTTOM - TABLE_TOP;
+      const centerX = TABLE_LEFT + tableW / 2;
+      const centerY = TABLE_TOP + tableH / 2;
+      // Línea central
+      ctx.beginPath();
+      ctx.moveTo(centerX, TABLE_TOP);
+      ctx.lineTo(centerX, TABLE_BOTTOM);
+      ctx.stroke();
+      // Círculo central
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 38, 0, Math.PI * 2);
+      ctx.stroke();
+      // Áreas tipo penalty (rectángulos)
+      const boxW = 50;
+      const boxH = 70;
+      ctx.strokeRect(TABLE_LEFT + 8, TABLE_TOP + 8, boxW, boxH);
+      ctx.strokeRect(TABLE_RIGHT - 8 - boxW, TABLE_TOP + 8, boxW, boxH);
+      ctx.strokeRect(TABLE_LEFT + 8, TABLE_BOTTOM - 8 - boxH, boxW, boxH);
+      ctx.strokeRect(TABLE_RIGHT - 8 - boxW, TABLE_BOTTOM - 8 - boxH, boxW, boxH);
+      // Borde mesa (blanco)
+      ctx.strokeStyle = "#fff";
       ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.roundRect(TABLE_LEFT, TABLE_TOP, tableW, tableH, 8);
       ctx.stroke();
 
       // Vasos (todos visibles en triángulo)
@@ -194,14 +224,14 @@ export default function BeerPong() {
         ctx.fillText("🍺", pos.x, pos.y);
       });
 
-      // Línea de deslizamiento (dirección del tiro)
-      if (swipeLine) {
-        ctx.strokeStyle = "rgba(255, 215, 0, 0.9)";
+      // Línea de “tirar para atrás” (desde la bola hasta el dedo)
+      if (pullLine) {
+        ctx.strokeStyle = "rgba(255, 215, 0, 0.95)";
         ctx.lineWidth = 3;
         ctx.setLineDash([6, 4]);
         ctx.beginPath();
-        ctx.moveTo(swipeLine.x1, swipeLine.y1);
-        ctx.lineTo(swipeLine.x2, swipeLine.y2);
+        ctx.moveTo(pullLine.x1, pullLine.y1);
+        ctx.lineTo(pullLine.x2, pullLine.y2);
         ctx.stroke();
         ctx.setLineDash([]);
       }
@@ -215,7 +245,7 @@ export default function BeerPong() {
       ctx.lineWidth = 2;
       ctx.stroke();
     },
-    [swipeLine]
+    [pullLine]
   );
 
   const gameLoop = useCallback(() => {
@@ -305,99 +335,85 @@ export default function BeerPong() {
     };
   }, [isFlying, gameLoop]);
 
+  // Solo se activa si haces click EN la bola blanca
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (isFlying || gameOver || remainingCups <= 0 || !currentPlayerId) return;
+      if (isFlying || gameOver || remainingCups <= 0 || !currentPlayerId || ballSelected) return;
       const p = getCanvasPoint(e.clientX, e.clientY);
-      if (p) {
-        swipeStartRef.current = p;
-        swipeEndRef.current = p;
-        setSwipeLine({ x1: p.x, y1: p.y, x2: p.x, y2: p.y });
-      }
-    },
-    [isFlying, gameOver, remainingCups, currentPlayerId, getCanvasPoint]
-  );
-
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (!swipeStartRef.current) return;
-      const p = getCanvasPoint(e.clientX, e.clientY);
-      if (p) {
-        swipeEndRef.current = p;
-        const start = swipeStartRef.current;
-        setSwipeLine({ x1: start.x, y1: start.y, x2: p.x, y2: p.y });
-      }
-    },
-    [getCanvasPoint]
-  );
-
-  const handlePointerUp = useCallback(
-    (e: React.PointerEvent) => {
-      const start = swipeStartRef.current;
-      const end = swipeEndRef.current;
-      swipeStartRef.current = null;
-      swipeEndRef.current = null;
-      setSwipeLine(null);
-
-      if (!start || !end || isFlying || gameOver) return;
-
-      const dx = end.x - start.x;
-      const dy = end.y - start.y;
-      const len = Math.hypot(dx, dy);
-
-      if (len < 15) return;
-
-      const speed = Math.min(len * SWIPE_SCALE, MAX_SPEED);
-      const vx = (dx / len) * speed;
-      const vy = (dy / len) * speed;
-
+      if (!p) return;
       const g = gameRef.current;
-      g.x = BALL_START_X;
-      g.y = BALL_START_Y;
-      g.vx = vx;
-      g.vy = vy;
-
-      setLastResult(null);
-      setIsFlying(true);
+      const dist = Math.hypot(p.x - g.x, p.y - g.y);
+      if (dist <= BALL_R + 5) {
+        e.preventDefault();
+        setBallSelected(true);
+        dragEndRef.current = p;
+        setPullLine({ x1: g.x, y1: g.y, x2: p.x, y2: p.y });
+      }
     },
-    [isFlying, gameOver]
+    [isFlying, gameOver, remainingCups, currentPlayerId, ballSelected, getCanvasPoint]
   );
 
+  // Arrastrar desde cualquier parte de la pantalla (PC o celular)
   useEffect(() => {
-    const onUp = () => {
-      const start = swipeStartRef.current;
-      const end = swipeEndRef.current;
-      if (!start || !end) return;
+    if (!ballSelected) return;
 
-      const dx = end.x - start.x;
-      const dy = end.y - start.y;
+    const getPoint = (clientX: number, clientY: number) => {
+      const el = canvasRef.current;
+      if (!el) return null;
+      const rect = el.getBoundingClientRect();
+      const scaleX = el.width / rect.width;
+      const scaleY = el.height / rect.height;
+      return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY,
+      };
+    };
+
+    const onMove = (e: PointerEvent) => {
+      const p = getPoint(e.clientX, e.clientY);
+      if (!p) return;
+      const g = gameRef.current;
+      dragEndRef.current = p;
+      setPullLine({ x1: g.x, y1: g.y, x2: p.x, y2: p.y });
+    };
+
+    const onUp = (e: PointerEvent) => {
+      const p = getPoint(e.clientX, e.clientY);
+      setBallSelected(false);
+      setPullLine(null);
+      dragEndRef.current = null;
+
+      if (!p || gameOver || isFlying) return;
+
+      const g = gameRef.current;
+      const dx = g.x - p.x;
+      const dy = g.y - p.y;
       const len = Math.hypot(dx, dy);
-      if (len < 15) {
-        swipeStartRef.current = null;
-        swipeEndRef.current = null;
-        setSwipeLine(null);
-        return;
-      }
 
-      const speed = Math.min(len * SWIPE_SCALE, MAX_SPEED);
+      if (len < MIN_PULL) return;
+
+      const speed = Math.min(len * PULL_SCALE, MAX_SPEED);
       const vx = (dx / len) * speed;
       const vy = (dy / len) * speed;
 
-      const g = gameRef.current;
       g.x = BALL_START_X;
       g.y = BALL_START_Y;
       g.vx = vx;
       g.vy = vy;
 
-      swipeStartRef.current = null;
-      swipeEndRef.current = null;
-      setSwipeLine(null);
       setLastResult(null);
       setIsFlying(true);
     };
+
+    window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
-    return () => window.removeEventListener("pointerup", onUp);
-  }, []);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [ballSelected, gameOver, isFlying]);
 
   const resetCups = useCallback(() => {
     setCupsHit([]);
@@ -607,7 +623,7 @@ export default function BeerPong() {
               </div>
 
               <p className="text-center text-white/50 text-xs font-body mt-3">
-                Desliza el dedo desde la pelota hacia los vasos y suelta para lanzar
+                1) Click en la bola blanca · 2) Arrastra para atrás (hacia ti) en cualquier parte · 3) Suelta para lanzar
               </p>
 
               <AnimatePresence mode="wait">
