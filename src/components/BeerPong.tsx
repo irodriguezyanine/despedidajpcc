@@ -186,9 +186,9 @@ export default function BeerPong() {
     }
     const id = generateId();
     setParticipants((prev) => [...prev, { id, name, score: 0 }]);
-    if (!currentPlayerId) setCurrentPlayerId(id);
+    setCurrentPlayerId(id);
     setNewName("");
-  }, [newName, currentPlayerId, participants]);
+  }, [newName, participants]);
 
   const getCanvasPoint = useCallback((clientX: number, clientY: number) => {
     const el = canvasRef.current;
@@ -544,6 +544,16 @@ export default function BeerPong() {
     if (ctx) draw(ctx);
   }, [draw, cupsHit, lives]);
 
+  // Al pasar a etapa 2 (jugador unido), forzar redibujado del canvas para que se vean vasos y bola
+  useEffect(() => {
+    if (participants.length === 0) return;
+    const raf = requestAnimationFrame(() => {
+      const ctx = canvasRef.current?.getContext("2d");
+      if (ctx) draw(ctx);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [participants.length, draw]);
+
   const sortedParticipants = [...participants].sort((a, b) => b.score - a.score);
 
   // Para mostrar "(intento 2)", "(intento 3)" cuando el mismo nombre se repite en la tabla
@@ -594,89 +604,76 @@ export default function BeerPong() {
           Desliza el dedo hacia los vasos para lanzar
         </motion.p>
 
-        <div className="flex flex-wrap gap-2 mb-4">
-          <input
-            type="text"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addParticipant()}
-            placeholder="Tu nombre"
-            className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 font-body text-sm focus:outline-none focus:border-red-400/50"
-          />
-          <button
-            type="button"
-            onClick={addParticipant}
-            className="px-5 py-2.5 rounded-xl font-body text-sm font-medium bg-red-500/80 text-white border border-red-400/50 hover:bg-red-500 transition-colors"
-          >
-            Unirse
-          </button>
-        </div>
-
-        {participants.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="glass-card rounded-xl p-4 mb-4 border border-white/20"
-          >
-            <p className="font-display text-sm text-white/80 mb-3 uppercase tracking-wider">
-              Tabla de puntajes (guardados)
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left font-body text-sm">
-                <thead>
-                  <tr className="text-white/60 border-b border-white/10">
-                    <th className="py-2 pr-3">#</th>
-                    <th className="py-2 pr-3">Nombre</th>
-                    <th className="py-2 text-right">Puntos</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedParticipants.map((p, idx) => (
-                    <tr
-                      key={p.id}
-                      className={`border-b border-white/5 last:border-0 ${
-                        p.id === currentPlayerId ? "bg-red-500/15" : ""
-                      }`}
-                    >
-                      <td className="py-2 pr-3 text-white/70">{idx + 1}</td>
-                      <td className="py-2 pr-3 text-white font-medium">
-                        {getDisplayName(p.name, idx)}
-                        {p.id === currentPlayerId && (
-                          <span className="ml-2 text-xs text-amber-400">
-                            (lanza)
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2 text-right text-amber-400 font-mono font-bold">
-                        {p.score}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* Etapa 1: solo si aún no hay jugador unido — Tu nombre, Unirse y tabla */}
+        {participants.length === 0 && (
+          <>
+            <div className="flex flex-wrap gap-2 mb-4">
+              <input
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addParticipant()}
+                placeholder="Tu nombre"
+                className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 font-body text-sm focus:outline-none focus:border-red-400/50"
+              />
+              <button
+                type="button"
+                onClick={addParticipant}
+                className="px-5 py-2.5 rounded-xl font-body text-sm font-medium bg-red-500/80 text-white border border-red-400/50 hover:bg-red-500 transition-colors"
+              >
+                Unirse
+              </button>
             </div>
-            {participants.length > 1 && (
-              <div className="mt-3 pt-3 border-t border-white/10">
-                <label className="text-xs text-white/50 block mb-1">
-                  Quién lanza ahora
-                </label>
-                <select
-                  value={currentPlayerId ?? ""}
-                  onChange={(e) => setCurrentPlayerId(e.target.value || null)}
-                  className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white font-body text-sm focus:outline-none focus:border-red-400/50"
-                >
-                  {participants.map((p, idx) => (
-                    <option key={p.id} value={p.id}>
-                      {getDisplayNameInList(p, idx)}
-                    </option>
-                  ))}
-                </select>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="glass-card rounded-xl p-4 mb-4 border border-white/20"
+            >
+              <p className="font-display text-sm text-white/80 mb-3 uppercase tracking-wider">
+                Tabla de puntajes (guardados)
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left font-body text-sm">
+                  <thead>
+                    <tr className="text-white/60 border-b border-white/10">
+                      <th className="py-2 pr-3">#</th>
+                      <th className="py-2 pr-3">Nombre</th>
+                      <th className="py-2 text-right">Puntos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedParticipants.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="py-4 text-center text-white/40 text-sm">
+                          Únete para jugar y aparecer en la tabla
+                        </td>
+                      </tr>
+                    ) : (
+                      sortedParticipants.map((p, idx) => (
+                        <tr
+                          key={p.id}
+                          className="border-b border-white/5 last:border-0"
+                        >
+                          <td className="py-2 pr-3 text-white/70">{idx + 1}</td>
+                          <td className="py-2 pr-3 text-white font-medium">
+                            {getDisplayName(p.name, idx)}
+                          </td>
+                          <td className="py-2 text-right text-amber-400 font-mono font-bold">
+                            {p.score}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </motion.div>
+            </motion.div>
+          </>
         )}
 
-        <motion.div
+        {/* Etapa 2: ya hay jugador unido — tablero primero, tabla abajo; sin "Tu nombre"/Unirse ni "Quién lanza" */}
+        {participants.length > 0 && (
+          <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -762,16 +759,12 @@ export default function BeerPong() {
                 REINICIAR
               </motion.button>
             </div>
-          ) : participants.length === 0 ? (
-            <div className="rounded-xl bg-black/40 border-2 border-amber-500/30 p-8 text-center">
-              <p className="font-body text-white/80 mb-4">
-                Escribe tu nombre arriba y haz clic en <strong>Unirse</strong> para jugar.
-              </p>
-              <p className="text-white/50 text-sm">No puedes lanzar sin registrarte.</p>
-            </div>
           ) : (
             <>
-              <div className="mx-auto rounded-xl border-2 border-amber-500/40 overflow-hidden touch-none select-none">
+              <div
+                key="game-board"
+                className="mx-auto rounded-xl border-2 border-amber-500/40 overflow-hidden touch-none select-none"
+              >
                 <canvas
                   ref={canvasRef}
                   width={CANVAS_W}
@@ -813,6 +806,53 @@ export default function BeerPong() {
             </>
           )}
         </motion.div>
+
+        {/* Tabla de puntajes debajo del tablero (etapa 2) */}
+        {participants.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card rounded-xl p-4 mt-6 border border-white/20"
+          >
+            <p className="font-display text-sm text-white/80 mb-3 uppercase tracking-wider">
+              Tabla de puntajes (guardados)
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left font-body text-sm">
+                <thead>
+                  <tr className="text-white/60 border-b border-white/10">
+                    <th className="py-2 pr-3">#</th>
+                    <th className="py-2 pr-3">Nombre</th>
+                    <th className="py-2 text-right">Puntos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedParticipants.map((p, idx) => (
+                    <tr
+                      key={p.id}
+                      className={`border-b border-white/5 last:border-0 ${
+                        p.id === currentPlayerId ? "bg-red-500/15" : ""
+                      }`}
+                    >
+                      <td className="py-2 pr-3 text-white/70">{idx + 1}</td>
+                      <td className="py-2 pr-3 text-white font-medium">
+                        {getDisplayName(p.name, idx)}
+                        {p.id === currentPlayerId && (
+                          <span className="ml-2 text-xs text-amber-400">
+                            (lanza)
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 text-right text-amber-400 font-mono font-bold">
+                        {p.score}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+        )}
       </div>
     </section>
   );
