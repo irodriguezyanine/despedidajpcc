@@ -615,10 +615,6 @@ export default function BeerPong() {
                   className="block w-full h-auto"
                   style={{ touchAction: "none", cursor: "crosshair" }}
                   onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
-                  onPointerCancel={handlePointerUp}
-                  onPointerLeave={handlePointerUp}
                 />
               </div>
 
