@@ -31,7 +31,7 @@ export default function Hero() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.6 }}
-          className="font-mono text-sm sm:text-base tracking-[0.4em] text-miami-blue text-neon-cyan uppercase mb-4"
+          className="font-mono text-sm sm:text-base tracking-[0.4em] text-red-400 uppercase mb-4 shadow-neon-red"
         >
           CUENTA REGRESIVA
         </motion.p>
@@ -46,7 +46,7 @@ export default function Hero() {
         >
           DESPEDIDA DE SOLTEROS
           <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-sunset-orange via-amber-300 to-miami-blue">
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-sky-100 to-cyan-400">
             JPCC
           </span>
         </motion.h1>

@@ -27,7 +27,7 @@ function DigitColumn({ value, label }: { value: number; label: string }) {
   const top = pad(value);
   return (
     <div className="flex flex-col items-center gap-1 sm:gap-2">
-      <div className="relative h-14 w-14 sm:h-20 sm:w-20 md:h-24 md:w-24 lg:h-28 lg:w-28 overflow-hidden rounded-lg bg-black/60 border border-miami-blue/40 font-mono text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-miami-blue text-neon-cyan flex items-center justify-center">
+      <div className="relative h-14 w-14 sm:h-20 sm:w-20 md:h-24 md:w-24 lg:h-28 lg:w-28 overflow-hidden rounded-lg bg-black/60 border border-red-500/50 font-mono text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-red-400 flex items-center justify-center shadow-neon-red">
         <AnimatePresence mode="popLayout">
           <motion.span
             key={top}

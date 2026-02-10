@@ -183,17 +183,13 @@ export default function BeerPong() {
     ballSelectedRef.current = ballSelected;
   }, [cupsHit, currentPlayerId, participants, ballSelected]);
 
-  // Mejora 10: cargar leaderboard solo en useEffect (nunca en render) para evitar hidratación
+  // Leaderboard: solo Rodri con 33 puntos (se eliminaron entradas de prueba)
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const raw = loadLeaderboard();
-    const namesToRemove = ["Prueba", "PRUEBA", "AGUANTE LA UC", "ALAMOS"];
-    let loaded = raw.filter((p) => !namesToRemove.includes(p.name));
-    if (loaded.length < raw.length) saveLeaderboard(loaded);
-    setParticipants(loaded);
-    if (loaded.length > 0) {
-      setCurrentPlayerId((id) => id || loaded[0].id);
-    }
+    const rodriOnly = [{ id: "rodri-33", name: "Rodri", score: 33 }];
+    saveLeaderboard(rodriOnly);
+    setParticipants(rodriOnly);
+    setCurrentPlayerId("rodri-33");
   }, []);
 
   // Cargar logo Alamicos para dibujarlo dentro del tablero verde
@@ -853,7 +849,19 @@ export default function BeerPong() {
     sortedParticipants.findIndex((p) => p.id === currentPlayerId) + 1 || 0;
 
   return (
-    <section id="beerpong" className="relative py-24 px-4 overflow-hidden">
+    <section id="beerpong" className="relative py-24 px-4 overflow-hidden stripes-football">
+      {/* Fondo: imagen hinchada izquierda */}
+      <div
+        className="absolute inset-y-0 left-0 w-1/2 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: "url(/hinchada-izq.png)" }}
+        aria-hidden
+      />
+      {/* Fondo: imagen hinchada derecha */}
+      <div
+        className="absolute inset-y-0 right-0 w-1/2 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: "url(/hinchada-der.png)" }}
+        aria-hidden
+      />
       <div className="absolute inset-0 bg-gradient-to-b from-pitch-green/95 via-red-950/30 to-violet-950/95" />
       <div
         className="absolute inset-0 opacity-[0.06]"

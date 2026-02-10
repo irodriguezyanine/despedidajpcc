@@ -52,6 +52,7 @@ const config: Config = {
         "neon-pink": "0 0 20px rgba(255, 0, 255, 0.6), 0 0 40px rgba(255, 0, 255, 0.3)",
         "neon-cyan": "0 0 20px rgba(0, 255, 255, 0.6), 0 0 40px rgba(0, 255, 255, 0.3)",
         "neon-orange": "0 0 20px rgba(255, 153, 0, 0.6)",
+        "neon-red": "0 0 20px rgba(255, 59, 48, 0.7), 0 0 40px rgba(255, 59, 48, 0.4)",
       },
     },
   },
