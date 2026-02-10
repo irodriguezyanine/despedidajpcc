@@ -16,13 +16,14 @@ const CANVAS_W = 340;
 const CANVAS_H = 440;
 const TABLE_MARGIN = 20;
 const BALL_R = 10;
-const CUP_R = 18;        // radio para enceste (punto solo si la bola se detiene dentro)
-const FRICTION = 0.978;  // un poco más fricción = la bola se detiene algo más en el vaso
+const CUP_R = 20;        // radio para enceste (zona más generosa)
+const FRICTION = 0.98;   // más fricción = la bola se frena más y entra más fácil al vaso
 const PULL_SCALE = 0.10;
-const PULL_SCALE_MOBILE = 0.115; // en celular: sensible pero no tan salvaje
+const PULL_SCALE_MOBILE = 0.105; // en celular: un poco más control
 const MAX_SPEED = 26;
 const MIN_PULL = 22;
-const STOP_SPEED = 0.6;  // por debajo de esto cuenta como "detenida" (un poco más permisivo)
+const STOP_SPEED = 1.4;  // por debajo = "detenida" (muy permisivo)
+const LOW_SPEED_SCORE = 3.5; // si la bola pasa por el vaso a esta velocidad o menos, también cuenta
 
 // Mesa: zona jugable (nosotros abajo, vasos arriba)
 const TABLE_LEFT = TABLE_MARGIN;
@@ -61,9 +62,9 @@ const SOFT_THRESHOLD_DISPLAY = MAX_SPEED * 0.38;
 // Zona de vasos para rebote entre vasos (y)
 const CUP_ZONE_TOP = 45;
 const CUP_ZONE_BOTTOM = 180;
-const GAP_RADIUS = CUP_R + 20;   // rebote entre vasos
-const CUP_BOUNCE_SPEED_MAX = 8;  // hasta esta velocidad puede rebotar entre vasos
-const CUP_BOUNCE_STRENGTH = 1.05; // rebote más suave (un poco menos caótico)
+const GAP_RADIUS = CUP_R + 18;   // rebote entre vasos (un poco más estrecho = menos rebotes)
+const CUP_BOUNCE_SPEED_MAX = 6;  // solo rebote a baja velocidad
+const CUP_BOUNCE_STRENGTH = 0.95; // rebote suave
 
 export interface Participant {
   id: string;
@@ -551,16 +552,14 @@ export default function BeerPong() {
     const curCups = cupsHitRef.current;
     const curPlayer = currentPlayerIdRef.current;
 
-    // Solo cuenta punto cuando la bola SE DETIENE dentro del vaso (no al pasar)
-    if (speed < STOP_SPEED) {
-      bouncedBetweenCupsRef.current = false;
-      let scored = false;
+    // Punto si la bola está en un vaso y va lenta (detenida o pasando suave)
+    if (speed < LOW_SPEED_SCORE) {
       for (let i = 0; i < TOTAL_CUPS; i++) {
         if (curCups.includes(i)) continue;
         const c = CUP_POSITIONS[i];
         const dist = Math.hypot(g.x - c.x, g.y - c.y);
         if (dist < CUP_R) {
-          scored = true;
+          bouncedBetweenCupsRef.current = false;
           celebratingHitAtRef.current = now;
           setCelebratingHit(i);
           haptic("medium");
@@ -574,9 +573,22 @@ export default function BeerPong() {
               : prev
           );
           setLastResult("hit");
-          break;
+          g.vx = 0;
+          g.vy = 0;
+          g.x = BALL_START_X;
+          g.y = BALL_START_Y;
+          setIsFlying(false);
+          if (g.rafId != null) cancelAnimationFrame(g.rafId);
+          g.rafId = null;
+          draw(ctx);
+          return;
         }
       }
+    }
+
+    // Cuando la bola se detiene sin haber encestado: volver a posición inicial
+    if (speed < STOP_SPEED) {
+      bouncedBetweenCupsRef.current = false;
       g.vx = 0;
       g.vy = 0;
       g.x = BALL_START_X;
