@@ -921,6 +921,12 @@ export default function BeerPong() {
             <p className="text-white/60 font-body text-sm mt-6 text-center max-w-sm mx-auto">
               Juega, no seas cagon !
             </p>
+            <a
+              href="#beerpong-tabla"
+              className="mt-3 inline-block font-body text-sm text-amber-400 hover:text-amber-300 underline transition-colors"
+            >
+              Ver tabla
+            </a>
           </motion.div>
         )}
 
@@ -1066,12 +1072,13 @@ export default function BeerPong() {
         </motion.div>
         )}
 
-        {/* Tabla de puntajes debajo del tablero (etapa 2) */}
-        {stage === 2 && mounted && (
+        {/* Tabla de puntajes: visible en etapa 1 y 2 para poder "Ver tabla" antes de jugar */}
+        {mounted && (
           <motion.div
+            id="beerpong-tabla"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="glass-card rounded-xl p-4 mt-6 border border-white/20"
+            className="glass-card rounded-xl p-4 mt-6 border border-white/20 scroll-mt-24"
           >
             <p className="font-display text-sm text-white/80 mb-3 uppercase tracking-wider">
               Tabla de puntajes (guardados)

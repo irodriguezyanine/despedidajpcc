@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import Countdown from "./Countdown";
 import { cn } from "@/lib/utils";
 import { MapPin, Calendar } from "lucide-react";
+import ShareButton from "./ShareButton";
 
 export default function Hero() {
   return (
@@ -106,6 +107,7 @@ export default function Hero() {
             <MapPin className="w-5 h-5" />
             VER UBICACIÓN
           </a>
+          <ShareButton />
         </motion.div>
       </div>
     </section>
