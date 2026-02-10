@@ -38,10 +38,23 @@ export default function RootLayout({
       lang="es"
       className={`${anton.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="antialiased min-h-screen bg-background text-foreground overflow-x-hidden">
+      <body className="antialiased min-h-screen text-foreground overflow-x-hidden relative">
+        {/* Logo del equipo de fondo, debajo del verde y un poco transparente */}
+        <div
+          className="fixed inset-0 z-0 bg-center bg-no-repeat bg-[length:min(70vh,70vw)] opacity-[0.12]"
+          style={{ backgroundImage: "url(/logo-alamicos.png)" }}
+          aria-hidden
+        />
+        <div
+          className="fixed inset-0 z-0"
+          style={{
+            background: "linear-gradient(180deg, #061408 0%, #0c4a6e 25%, #0f766e 50%, #134e4a 70%, #0d0618 100%)",
+          }}
+          aria-hidden
+        />
         <div className="grain-overlay" aria-hidden />
         <WelcomeModal />
-        {children}
+        <div className="relative z-10">{children}</div>
         <SpotifyPlayer />
       </body>
     </html>

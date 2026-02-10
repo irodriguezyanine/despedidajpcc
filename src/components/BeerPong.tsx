@@ -53,8 +53,8 @@ function getCupPositions(): { x: number; y: number }[] {
 
 const CUP_POSITIONS = getCupPositions();
 
-// Si la bola va con más del 90% de la velocidad máxima, pasa por encima del vaso (no punto)
-const OVERSPEED_THRESHOLD = MAX_SPEED * 0.9;
+// Con potencia al máximo (o muy fuerte) no se gana punto: la bola pasa por encima del vaso
+const OVERSPEED_THRESHOLD = MAX_SPEED * 0.7;
 // Zona de vasos para rebote entre vasos (y)
 const CUP_ZONE_TOP = 50;
 const CUP_ZONE_BOTTOM = 175;
@@ -486,7 +486,18 @@ export default function BeerPong() {
     };
   }, []);
 
+  // Reiniciar tras Game Over: nuevo intento en la tabla (mismo nombre, puntaje 0, "intento 2", "3"...)
   const startNewGame = useCallback(() => {
+    const currentPlayer = participants.find((p) => p.id === currentPlayerId);
+    if (currentPlayer) {
+      const newParticipant: Participant = {
+        id: generateId(),
+        name: currentPlayer.name,
+        score: 0,
+      };
+      setParticipants((prev) => [...prev, newParticipant]);
+      setCurrentPlayerId(newParticipant.id);
+    }
     setGameOver(false);
     setShowWinModal(false);
     setLives(3);
@@ -498,7 +509,7 @@ export default function BeerPong() {
     g.y = BALL_START_Y;
     g.vx = 0;
     g.vy = 0;
-  }, []);
+  }, [participants, currentPlayerId]);
 
   // Doblar la apuesta: nueva ronda (6 vasos), se mantienen vidas, jugadores y puntajes
   const startNewRound = useCallback(() => {
