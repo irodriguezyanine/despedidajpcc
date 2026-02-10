@@ -586,7 +586,7 @@ export default function BeerPong() {
           viewport={{ once: true }}
           className="text-center text-white/60 font-body text-sm mb-6"
         >
-          Primera persona · Desliza el dedo hacia los vasos para lanzar
+          Desliza el dedo hacia los vasos para lanzar
         </motion.p>
 
         <div className="flex flex-wrap gap-2 mb-4">
