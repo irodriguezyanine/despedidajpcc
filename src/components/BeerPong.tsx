@@ -99,6 +99,7 @@ export default function BeerPong() {
     rafId: null,
   });
   const dragEndRef = useRef<{ x: number; y: number } | null>(null);
+  const pullLineRafRef = useRef<number | null>(null);
   const cupsHitRef = useRef<number[]>([]);
   const currentPlayerIdRef = useRef<string | null>(null);
   const participantsRef = useRef<Participant[]>([]);
@@ -183,29 +184,43 @@ export default function BeerPong() {
       ctx.roundRect(TABLE_LEFT, TABLE_TOP, TABLE_RIGHT - TABLE_LEFT, TABLE_BOTTOM - TABLE_TOP, 8);
       ctx.fill();
 
-      // Líneas blancas tipo cancha (soccer)
-      ctx.strokeStyle = "rgba(255,255,255,0.9)";
+      // Líneas blancas tipo cancha (fútbol): línea de saque horizontal y áreas
+      ctx.strokeStyle = "rgba(255,255,255,0.95)";
       ctx.lineWidth = 2.5;
       const tableW = TABLE_RIGHT - TABLE_LEFT;
       const tableH = TABLE_BOTTOM - TABLE_TOP;
       const centerX = TABLE_LEFT + tableW / 2;
       const centerY = TABLE_TOP + tableH / 2;
-      // Línea central
+
+      // Línea de saque inicial (horizontal, al medio)
       ctx.beginPath();
-      ctx.moveTo(centerX, TABLE_TOP);
-      ctx.lineTo(centerX, TABLE_BOTTOM);
+      ctx.moveTo(TABLE_LEFT, centerY);
+      ctx.lineTo(TABLE_RIGHT, centerY);
       ctx.stroke();
-      // Círculo central
+
+      // --- Mitad superior: área grande con semicírculo y área chica ---
+      const areaGrandeH = (tableH / 2) - 20;
+      const areaChicaH = 38;
+      const areaChicaW = 100;
+      const arcR = 45;
+
+      // Área grande arriba (rectángulo)
+      ctx.strokeRect(TABLE_LEFT, TABLE_TOP, tableW, areaGrandeH);
+      // Área chica arriba (rectángulo dentro)
+      ctx.strokeRect(centerX - areaChicaW / 2, TABLE_TOP, areaChicaW, areaChicaH);
+      // Semicírculo arriba (en el borde inferior del área grande, abriendo hacia abajo)
       ctx.beginPath();
-      ctx.arc(centerX, centerY, 38, 0, Math.PI * 2);
+      ctx.arc(centerX, TABLE_TOP + areaGrandeH, arcR, Math.PI, 0);
       ctx.stroke();
-      // Áreas tipo penalty (rectángulos)
-      const boxW = 50;
-      const boxH = 70;
-      ctx.strokeRect(TABLE_LEFT + 8, TABLE_TOP + 8, boxW, boxH);
-      ctx.strokeRect(TABLE_RIGHT - 8 - boxW, TABLE_TOP + 8, boxW, boxH);
-      ctx.strokeRect(TABLE_LEFT + 8, TABLE_BOTTOM - 8 - boxH, boxW, boxH);
-      ctx.strokeRect(TABLE_RIGHT - 8 - boxW, TABLE_BOTTOM - 8 - boxH, boxW, boxH);
+
+      // --- Mitad inferior: área grande con semicírculo y área chica (espejo) ---
+      const bottomAreaTop = centerY + 20;
+      ctx.strokeRect(TABLE_LEFT, bottomAreaTop, tableW, TABLE_BOTTOM - bottomAreaTop);
+      ctx.strokeRect(centerX - areaChicaW / 2, TABLE_BOTTOM - areaChicaH, areaChicaW, areaChicaH);
+      ctx.beginPath();
+      ctx.arc(centerX, bottomAreaTop, arcR, 0, Math.PI);
+      ctx.stroke();
+
       // Borde mesa (blanco)
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 3;
@@ -384,9 +399,14 @@ export default function BeerPong() {
       if (!ballSelectedRef.current) return;
       const p = getPoint(e.clientX, e.clientY);
       if (!p) return;
-      const g = gameRef.current;
       dragEndRef.current = p;
-      setPullLine({ x1: g.x, y1: g.y, x2: p.x, y2: p.y });
+      if (pullLineRafRef.current != null) cancelAnimationFrame(pullLineRafRef.current);
+      pullLineRafRef.current = requestAnimationFrame(() => {
+        const g = gameRef.current;
+        const end = dragEndRef.current;
+        if (end) setPullLine({ x1: g.x, y1: g.y, x2: end.x, y2: end.y });
+        pullLineRafRef.current = null;
+      });
     };
 
     const onUp = (e: PointerEvent) => {
@@ -429,17 +449,6 @@ export default function BeerPong() {
     };
   }, []);
 
-  const resetCups = useCallback(() => {
-    setCupsHit([]);
-    setLastResult(null);
-    cupsHitRef.current = [];
-    const g = gameRef.current;
-    g.x = BALL_START_X;
-    g.y = BALL_START_Y;
-    g.vx = 0;
-    g.vy = 0;
-  }, []);
-
   const startNewGame = useCallback(() => {
     setGameOver(false);
     setLives(3);
@@ -459,6 +468,26 @@ export default function BeerPong() {
   }, [draw, cupsHit, lives]);
 
   const sortedParticipants = [...participants].sort((a, b) => b.score - a.score);
+
+  // Para mostrar "(intento 2)", "(intento 3)" cuando el mismo nombre se repite en la tabla
+  const getDisplayName = (name: string, index: number) => {
+    const sameNameCount = sortedParticipants
+      .slice(0, index + 1)
+      .filter((p) => p.name === name).length;
+    return sameNameCount > 1 ? `${name} (intento ${sameNameCount})` : name;
+  };
+  const getDisplayNameInList = (p: Participant, index: number) => {
+    const sameNameCount = participants
+      .slice(0, index + 1)
+      .filter((x) => x.name === p.name).length;
+    return sameNameCount > 1 ? `${p.name} (intento ${sameNameCount})` : p.name;
+  };
+
+  const currentScore = currentPlayerId
+    ? participants.find((p) => p.id === currentPlayerId)?.score ?? 0
+    : 0;
+  const currentRank =
+    sortedParticipants.findIndex((p) => p.id === currentPlayerId) + 1 || 0;
 
   return (
     <section id="beerpong" className="relative py-24 px-4 overflow-hidden">
@@ -534,7 +563,7 @@ export default function BeerPong() {
                     >
                       <td className="py-2 pr-3 text-white/70">{idx + 1}</td>
                       <td className="py-2 pr-3 text-white font-medium">
-                        {p.name}
+                        {getDisplayName(p.name, idx)}
                         {p.id === currentPlayerId && (
                           <span className="ml-2 text-xs text-amber-400">
                             (lanza)
@@ -559,9 +588,9 @@ export default function BeerPong() {
                   onChange={(e) => setCurrentPlayerId(e.target.value || null)}
                   className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white font-body text-sm focus:outline-none focus:border-red-400/50"
                 >
-                  {participants.map((p) => (
+                  {participants.map((p, idx) => (
                     <option key={p.id} value={p.id}>
-                      {p.name}
+                      {getDisplayNameInList(p, idx)}
                     </option>
                   ))}
                 </select>
@@ -606,9 +635,12 @@ export default function BeerPong() {
 
           {gameOver ? (
             <div className="rounded-xl bg-black/50 border-2 border-red-500/50 p-8 text-center">
-              <p className="font-display text-2xl text-red-400 mb-2">GAME OVER</p>
-              <p className="font-body text-white/80 mb-6">
-                Sin vidas. Los puntajes siguen guardados.
+              <p className="font-display text-2xl text-red-400 mb-4">GAME OVER</p>
+              <p className="font-body text-white/90 mb-1">
+                Puntaje: <span className="font-bold text-amber-400">{currentScore}</span>
+              </p>
+              <p className="font-body text-white/90 mb-6">
+                Lugar general: <span className="font-bold text-amber-400">{currentRank}º</span>
               </p>
               <motion.button
                 onClick={startNewGame}
@@ -616,7 +648,7 @@ export default function BeerPong() {
                 whileTap={{ scale: 0.98 }}
                 className="px-8 py-4 rounded-xl font-display text-lg text-white bg-red-500 border border-red-400/50 hover:bg-red-600"
               >
-                JUGAR DE NUEVO
+                REINICIAR
               </motion.button>
             </div>
           ) : (
@@ -660,16 +692,6 @@ export default function BeerPong() {
                   </motion.p>
                 )}
               </AnimatePresence>
-
-              <div className="flex justify-center mt-4">
-                <motion.button
-                  onClick={resetCups}
-                  disabled={isFlying}
-                  className="px-6 py-3 rounded-xl font-body text-sm text-white/90 border border-white/30 hover:bg-white/10 disabled:opacity-50"
-                >
-                  Reiniciar vasos
-                </motion.button>
-              </div>
             </>
           )}
         </motion.div>
