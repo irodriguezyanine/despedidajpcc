@@ -139,6 +139,7 @@ export default function BeerPong() {
   const [showWinModal, setShowWinModal] = useState(false);
   const [savedFeedback, setSavedFeedback] = useState(false);
   const [stage, setStage] = useState<1 | 2>(1);
+  const [mounted, setMounted] = useState(false);
   const [celebratingHit, setCelebratingHit] = useState<number | null>(null);
   const celebratingHitAtRef = useRef<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -148,6 +149,11 @@ export default function BeerPong() {
   const [logoLoaded, setLogoLoaded] = useState(false);
 
   const remainingCups = TOTAL_CUPS - cupsHit.length;
+
+  // Evitar hidratación: el canvas y la etapa 2 solo existen en el cliente
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Al acertar todos los vasos: mostrar modal de victoria (no dejar la partida parada)
   useEffect(() => {
@@ -808,12 +814,12 @@ export default function BeerPong() {
           </motion.div>
         )}
 
-        {/* Etapa 2: Cancha + tabla abajo; modal solo sobre la cancha al ganar/perder */}
-        {stage === 2 && (
+        {/* Etapa 2: Cancha + tabla abajo; modal solo sobre la cancha al ganar/perder. Solo en cliente para evitar hidratación. */}
+        {stage === 2 && mounted && (
           <motion.div
           initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
           className="glass-card rounded-2xl p-6 sm:p-8 border-2 border-red-500/30 shadow-[0_0_40px_rgba(220,38,38,0.15)]"
         >
           <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
@@ -941,7 +947,7 @@ export default function BeerPong() {
         )}
 
         {/* Tabla de puntajes debajo del tablero (etapa 2) */}
-        {stage === 2 && (
+        {stage === 2 && mounted && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
