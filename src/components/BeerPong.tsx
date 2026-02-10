@@ -120,15 +120,21 @@ export default function BeerPong() {
   } | null>(null);
   const [lastResult, setLastResult] = useState<"hit" | "miss" | null>(null);
 
-  cupsHitRef.current = cupsHit;
-  currentPlayerIdRef.current = currentPlayerId;
-  participantsRef.current = participants;
-  ballSelectedRef.current = ballSelected;
-
   const remainingCups = TOTAL_CUPS - cupsHit.length;
 
   useEffect(() => {
-    setParticipants(loadLeaderboard());
+    cupsHitRef.current = cupsHit;
+    currentPlayerIdRef.current = currentPlayerId;
+    participantsRef.current = participants;
+    ballSelectedRef.current = ballSelected;
+  }, [cupsHit, currentPlayerId, participants, ballSelected]);
+
+  useEffect(() => {
+    const loaded = loadLeaderboard();
+    setParticipants(loaded);
+    if (loaded.length > 0) {
+      setCurrentPlayerId((id) => id || loaded[0].id);
+    }
   }, []);
 
   useEffect(() => {
@@ -335,34 +341,39 @@ export default function BeerPong() {
     };
   }, [isFlying, gameLoop]);
 
+  // Zona de click más grande para que sea fácil tocar la bola (radio 35px)
+  const BALL_CLICK_RADIUS = 35;
+
   // Solo se activa si haces click EN la bola blanca
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (isFlying || gameOver || remainingCups <= 0 || !currentPlayerId || ballSelected) return;
+      if (isFlying || gameOver || remainingCups <= 0 || ballSelected) return;
       const p = getCanvasPoint(e.clientX, e.clientY);
       if (!p) return;
       const g = gameRef.current;
       const dist = Math.hypot(p.x - g.x, p.y - g.y);
-      if (dist <= BALL_R + 5) {
+      if (dist <= BALL_CLICK_RADIUS) {
         e.preventDefault();
+        ballSelectedRef.current = true;
         setBallSelected(true);
         dragEndRef.current = p;
         setPullLine({ x1: g.x, y1: g.y, x2: p.x, y2: p.y });
       }
     },
-    [isFlying, gameOver, remainingCups, currentPlayerId, ballSelected, getCanvasPoint]
+    [isFlying, gameOver, remainingCups, ballSelected, getCanvasPoint]
   );
 
-  // Arrastrar desde cualquier parte de la pantalla (PC o celular)
+  // Listeners globales: una sola vez, usan refs para no depender del estado
   useEffect(() => {
-    if (!ballSelected) return;
+    const el = canvasRef.current;
+    if (!el) return;
 
     const getPoint = (clientX: number, clientY: number) => {
-      const el = canvasRef.current;
-      if (!el) return null;
-      const rect = el.getBoundingClientRect();
-      const scaleX = el.width / rect.width;
-      const scaleY = el.height / rect.height;
+      const canvas = canvasRef.current;
+      if (!canvas) return null;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
       return {
         x: (clientX - rect.left) * scaleX,
         y: (clientY - rect.top) * scaleY,
@@ -370,6 +381,7 @@ export default function BeerPong() {
     };
 
     const onMove = (e: PointerEvent) => {
+      if (!ballSelectedRef.current) return;
       const p = getPoint(e.clientX, e.clientY);
       if (!p) return;
       const g = gameRef.current;
@@ -378,12 +390,14 @@ export default function BeerPong() {
     };
 
     const onUp = (e: PointerEvent) => {
-      const p = getPoint(e.clientX, e.clientY);
+      if (!ballSelectedRef.current) return;
+      ballSelectedRef.current = false;
       setBallSelected(false);
       setPullLine(null);
       dragEndRef.current = null;
 
-      if (!p || gameOver || isFlying) return;
+      const p = getPoint(e.clientX, e.clientY);
+      if (!p) return;
 
       const g = gameRef.current;
       const dx = g.x - p.x;
@@ -413,7 +427,7 @@ export default function BeerPong() {
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [ballSelected, gameOver, isFlying]);
+  }, []);
 
   const resetCups = useCallback(() => {
     setCupsHit([]);
