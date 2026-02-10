@@ -17,9 +17,9 @@ const TABLE_MARGIN = 20;
 const BALL_R = 10;
 const CUP_R = 22;
 const FRICTION = 0.985;
-const PULL_SCALE = 0.08; // arrastrar para atrás: más distancia = más fuerza
-const MAX_SPEED = 16;
-const MIN_PULL = 20; // mínimo arrastre para lanzar
+const PULL_SCALE = 0.11; // arrastrar para atrás: más distancia = más fuerza
+const MAX_SPEED = 20;    // al máximo debe llegar arriba de la cancha
+const MIN_PULL = 22;     // mínimo: no debe pasar la mitad de cancha
 
 // Mesa: zona jugable (nosotros abajo, vasos arriba)
 const TABLE_LEFT = TABLE_MARGIN;
@@ -27,9 +27,9 @@ const TABLE_TOP = TABLE_MARGIN;
 const TABLE_RIGHT = CANVAS_W - TABLE_MARGIN;
 const TABLE_BOTTOM = CANVAS_H - TABLE_MARGIN;
 
-// Pelota: empieza en nuestro lado (abajo, centro)
+// Pelota: más arriba para tener espacio de arrastre hacia abajo
 const BALL_START_X = CANVAS_W / 2;
-const BALL_START_Y = CANVAS_H - 50;
+const BALL_START_Y = CANVAS_H - 100;
 
 // Vasos en triángulo 3-2-1 (vista primera persona: arriba del canvas)
 const CUP_ROWS = [
@@ -184,7 +184,7 @@ export default function BeerPong() {
       ctx.roundRect(TABLE_LEFT, TABLE_TOP, TABLE_RIGHT - TABLE_LEFT, TABLE_BOTTOM - TABLE_TOP, 8);
       ctx.fill();
 
-      // Líneas blancas tipo cancha (fútbol): línea de saque horizontal y áreas
+      // Centro de la cancha: una línea horizontal y un círculo (nada más)
       ctx.strokeStyle = "rgba(255,255,255,0.95)";
       ctx.lineWidth = 2.5;
       const tableW = TABLE_RIGHT - TABLE_LEFT;
@@ -192,33 +192,15 @@ export default function BeerPong() {
       const centerX = TABLE_LEFT + tableW / 2;
       const centerY = TABLE_TOP + tableH / 2;
 
-      // Línea de saque inicial (horizontal, al medio)
+      // Línea de saque (horizontal, al medio)
       ctx.beginPath();
       ctx.moveTo(TABLE_LEFT, centerY);
       ctx.lineTo(TABLE_RIGHT, centerY);
       ctx.stroke();
 
-      // --- Mitad superior: área grande con semicírculo y área chica ---
-      const areaGrandeH = (tableH / 2) - 20;
-      const areaChicaH = 38;
-      const areaChicaW = 100;
-      const arcR = 45;
-
-      // Área grande arriba (rectángulo)
-      ctx.strokeRect(TABLE_LEFT, TABLE_TOP, tableW, areaGrandeH);
-      // Área chica arriba (rectángulo dentro)
-      ctx.strokeRect(centerX - areaChicaW / 2, TABLE_TOP, areaChicaW, areaChicaH);
-      // Semicírculo arriba (en el borde inferior del área grande, abriendo hacia abajo)
+      // Círculo central
       ctx.beginPath();
-      ctx.arc(centerX, TABLE_TOP + areaGrandeH, arcR, Math.PI, 0);
-      ctx.stroke();
-
-      // --- Mitad inferior: área grande con semicírculo y área chica (espejo) ---
-      const bottomAreaTop = centerY + 20;
-      ctx.strokeRect(TABLE_LEFT, bottomAreaTop, tableW, TABLE_BOTTOM - bottomAreaTop);
-      ctx.strokeRect(centerX - areaChicaW / 2, TABLE_BOTTOM - areaChicaH, areaChicaW, areaChicaH);
-      ctx.beginPath();
-      ctx.arc(centerX, bottomAreaTop, arcR, 0, Math.PI);
+      ctx.arc(centerX, centerY, 42, 0, Math.PI * 2);
       ctx.stroke();
 
       // Borde mesa (blanco)
@@ -284,9 +266,18 @@ export default function BeerPong() {
     g.vy *= FRICTION;
 
     const speed = Math.hypot(g.vx, g.vy);
+
+    // Cuando la bola se detiene: reiniciar a posición inicial para el siguiente lanzamiento
     if (speed < 0.2) {
       g.vx = 0;
       g.vy = 0;
+      g.x = BALL_START_X;
+      g.y = BALL_START_Y;
+      setIsFlying(false);
+      if (g.rafId != null) cancelAnimationFrame(g.rafId);
+      g.rafId = null;
+      draw(ctx);
+      return;
     }
 
     const curCups = cupsHitRef.current;
