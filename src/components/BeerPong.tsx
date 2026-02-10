@@ -53,8 +53,8 @@ function getCupPositions(): { x: number; y: number }[] {
 
 const CUP_POSITIONS = getCupPositions();
 
-// Con potencia al máximo (o muy fuerte) no se gana punto: la bola pasa por encima del vaso
-const OVERSPEED_THRESHOLD = MAX_SPEED * 0.7;
+// Con potencia al máximo no se gana punto: solo tiros suaves pueden meter en el vaso
+const OVERSPEED_THRESHOLD = MAX_SPEED * 0.55;
 // Zona de vasos para rebote entre vasos (y)
 const CUP_ZONE_TOP = 50;
 const CUP_ZONE_BOTTOM = 175;
@@ -117,7 +117,7 @@ export default function BeerPong() {
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [cupsHit, setCupsHit] = useState<number[]>([]);
-  const [lives, setLives] = useState(3);
+  const [lives, setLives] = useState(2);
   const [gameOver, setGameOver] = useState(false);
   const [isFlying, setIsFlying] = useState(false);
   const [ballSelected, setBallSelected] = useState(false);
@@ -148,7 +148,16 @@ export default function BeerPong() {
   }, [cupsHit, currentPlayerId, participants, ballSelected]);
 
   useEffect(() => {
-    const loaded = loadLeaderboard();
+    const raw = loadLeaderboard();
+    // Quitar "Prueba" y el segundo "Rodri" (Rodri intento 2) de la tabla
+    let loaded = raw.filter((p) => p.name !== "Prueba");
+    let rodriCount = 0;
+    loaded = loaded.filter((p) => {
+      if (p.name !== "Rodri") return true;
+      rodriCount += 1;
+      return rodriCount <= 1;
+    });
+    if (loaded.length < raw.length) saveLeaderboard(loaded);
     setParticipants(loaded);
     if (loaded.length > 0) {
       setCurrentPlayerId((id) => id || loaded[0].id);
@@ -500,7 +509,7 @@ export default function BeerPong() {
     }
     setGameOver(false);
     setShowWinModal(false);
-    setLives(3);
+    setLives(2);
     setCupsHit([]);
     cupsHitRef.current = [];
     setLastResult(null);
@@ -674,7 +683,7 @@ export default function BeerPong() {
                 Vasos: {remainingCups}/{TOTAL_CUPS}
               </span>
               <div className="flex items-center gap-1">
-                {[1, 2, 3].map((i) => (
+                {[1, 2].map((i) => (
                   <span
                     key={i}
                     className={`w-6 h-6 rounded flex items-center justify-center text-xs ${

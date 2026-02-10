@@ -39,17 +39,18 @@ export default function RootLayout({
       className={`${anton.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}
     >
       <body className="antialiased min-h-screen text-foreground overflow-x-hidden relative">
-        {/* Logo del equipo de fondo, debajo del verde y un poco transparente */}
-        <div
-          className="fixed inset-0 z-0 bg-center bg-no-repeat bg-[length:min(70vh,70vw)] opacity-[0.12]"
-          style={{ backgroundImage: "url(/logo-alamicos.png)" }}
-          aria-hidden
-        />
+        {/* Fondo verde */}
         <div
           className="fixed inset-0 z-0"
           style={{
             background: "linear-gradient(180deg, #061408 0%, #0c4a6e 25%, #0f766e 50%, #134e4a 70%, #0d0618 100%)",
           }}
+          aria-hidden
+        />
+        {/* Logo Alamicos encima del verde, transparente para que se vea como marca de agua */}
+        <div
+          className="fixed inset-0 z-0 bg-center bg-no-repeat bg-[length:min(70vh,70vw)] opacity-[0.18] pointer-events-none"
+          style={{ backgroundImage: "url(/logo-alamicos.png)" }}
           aria-hidden
         />
         <div className="grain-overlay" aria-hidden />
