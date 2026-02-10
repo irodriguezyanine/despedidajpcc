@@ -16,7 +16,8 @@ const SQUAD = [
   { name: "Rodrigo Funes", apodo: "Rorro", numero: 14 },
   { name: "Guillermo Pizarro", apodo: "Guille", numero: 18 },
   { name: "Ignacio Elguera", apodo: "Nacho", numero: 7 },
-  { name: "Juan Pablo Rojas", apodo: "Juampi", numero: 1, groom: true },
+  { name: "Juan Pablo Rojas", apodo: "Juampi", numero: 1 },
+  { name: "Juan Pablo Casas Cordero", apodo: "JPCC", numero: 11, groom: true },
   { name: "Nicolas Ruiseñor", apodo: "Nico", numero: 31 },
   { name: "Guillermo Prussing", apodo: "Memo", numero: 24 },
 ];
@@ -36,8 +37,9 @@ const item = {
 
 export default function Squad() {
   return (
-    <section id="crew" className="relative py-24 px-4 overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-sky-950/90 via-teal-950/90 to-sky-950/95" />
+    <section id="crew" className="relative py-24 px-4 overflow-hidden stripes-football">
+      <div className="absolute inset-0 bg-gradient-to-b from-pitch-green/95 via-stadium-green/90 to-sky-950/95" />
+      <div className="absolute inset-0 bg-gradient-to-r from-real-red/5 via-transparent to-cyan-500/5" />
       <div className="relative z-10 max-w-6xl mx-auto">
         <motion.h2
           initial={{ opacity: 0, y: 20 }}
@@ -45,7 +47,7 @@ export default function Squad() {
           viewport={{ once: true }}
           className="font-display text-3xl sm:text-4xl md:text-5xl text-center mb-2 text-white"
         >
-          ALAMICOS <span className="text-teal-400">R.F.C</span>
+          ALAMICOS <span className="text-red-400">R.F.C</span>
         </motion.h2>
         <motion.p
           initial={{ opacity: 0 }}
@@ -69,9 +71,9 @@ export default function Squad() {
               variants={item}
               className={cn(
                 "glass-card rounded-xl p-3 sm:p-4 transition-all duration-300",
-                "hover:border-teal-400/50 hover:shadow-neon-cyan/20 hover:shadow-lg",
+                "hover:border-red-400/40 hover:shadow-[0_0_20px_rgba(220,38,38,0.15)] hover:shadow-lg",
                 "cursor-default",
-                person.groom && "ring-2 ring-amber-400/60 border-amber-400/40"
+                person.groom && "ring-2 ring-amber-400/60 border-amber-400/40 shadow-[0_0_24px_rgba(251,191,36,0.2)]"
               )}
             >
               <div className="flex items-center gap-2 sm:gap-3">
@@ -89,7 +91,7 @@ export default function Squad() {
                   <p className="font-body font-semibold text-white text-sm truncate">
                     {person.name}
                   </p>
-                  <p className="text-xs text-teal-300/90 font-mono flex items-center gap-1">
+                  <p className="text-xs text-red-200/80 font-mono flex items-center gap-1">
                     <Shirt className="w-3 h-3 shrink-0" />
                     {person.apodo} — #{person.numero}
                   </p>

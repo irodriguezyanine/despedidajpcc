@@ -8,15 +8,23 @@ import { MapPin, Calendar } from "lucide-react";
 export default function Hero() {
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center px-4 py-20 overflow-hidden">
-      {/* Fondo playa/verano: gradiente mar y cielo */}
+      {/* Fondo: imagen de estadio de fútbol */}
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: "url(/estadio-fondo.png)" }}
+      />
+      {/* Overlay: 50% fútbol (verde/oscuro) + 50% fiesta (azul/neon) */}
+      <div
+        className="absolute inset-0"
         style={{
-          backgroundImage: `linear-gradient(to bottom, rgba(12,74,110,0.4) 0%, rgba(13,148,136,0.3) 30%, rgba(15,118,110,0.5) 60%, rgba(10,6,18,0.95) 100%),
-            radial-gradient(ellipse 80% 50% at 50% 20%, rgba(254,243,199,0.15) 0%, transparent 50%)`,
+          background: `
+            linear-gradient(to bottom, rgba(6,20,12,0.5) 0%, rgba(13,148,136,0.35) 35%, rgba(15,118,110,0.5) 60%, rgba(10,6,24,0.97) 100%),
+            radial-gradient(ellipse 70% 40% at 50% 15%, rgba(0,255,255,0.08) 0%, transparent 50%),
+            radial-gradient(ellipse 100% 60% at 80% 80%, rgba(255,153,0,0.06) 0%, transparent 45%)
+          `,
         }}
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-teal-900/20 to-violet-950/80" />
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-emerald-950/15 to-violet-950/85" />
 
       <div className="relative z-10 max-w-4xl mx-auto text-center">
         <motion.p
@@ -79,8 +87,8 @@ export default function Hero() {
             href="#itinerario"
             className={cn(
               "inline-flex items-center gap-2 px-6 py-4 rounded-lg font-body font-semibold",
-              "bg-white/10 backdrop-blur border border-teal-400/50 text-white",
-              "hover:border-teal-400 hover:shadow-neon-cyan hover:bg-white/15",
+              "bg-white/10 backdrop-blur border border-red-400/50 text-white",
+              "hover:border-red-400 hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:bg-white/15",
               "transition-all duration-300 hover:animate-glitch"
             )}
           >
@@ -90,8 +98,8 @@ export default function Hero() {
             href="#mapa"
             className={cn(
               "inline-flex items-center gap-2 px-6 py-4 rounded-lg font-body font-semibold",
-              "bg-white/10 backdrop-blur border border-amber-400/50 text-white",
-              "hover:border-amber-400 hover:shadow-neon-orange hover:bg-white/15",
+              "bg-white/10 backdrop-blur border border-cyan-400/50 text-white",
+              "hover:border-cyan-400 hover:shadow-neon-cyan hover:bg-white/15",
               "transition-all duration-300"
             )}
           >

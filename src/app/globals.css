@@ -3,11 +3,18 @@
 @tailwind utilities;
 
 :root {
+  /* Fútbol */
+  --pitch-green: #0d2818;
+  --stadium-green: #134e1a;
+  --real-red: #dc2626;
+  --jersey-red: #b91c1c;
+  /* Fiesta / neon */
   --neon-pink: #ff00ff;
   --sunset-orange: #ff9900;
   --deep-purple: #2d004d;
   --miami-blue: #00ffff;
   --beach-teal: #0d9488;
+  --neon-amber: #fbbf24;
   --background: #0a0612;
   --foreground: #fafafa;
 }
@@ -23,7 +30,9 @@ html {
 }
 
 body {
-  background: radial-gradient(ellipse 120% 80% at 50% 0%, #0c4a6e 0%, #0f766e 30%, #134e4a 50%, #0d0618 100%);
+  /* 50% fútbol (verde estadio) + 50% fiesta (azul/neon) */
+  background:
+    linear-gradient(180deg, #061408 0%, #0c4a6e 25%, #0f766e 50%, #134e4a 70%, #0d0618 100%);
   color: var(--foreground);
   min-height: 100vh;
   font-family: var(--font-space-grotesk), system-ui, sans-serif;
@@ -40,6 +49,17 @@ body {
 
 .glass-card {
   @apply bg-white/10 backdrop-blur-xl border border-white/20;
+}
+
+/* Rayas tipo camiseta para acentos fútbol */
+.stripes-football {
+  background: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 8px,
+    rgba(255,255,255,0.04) 8px,
+    rgba(255,255,255,0.04) 10px
+  );
 }
 
 .text-neon-pink {

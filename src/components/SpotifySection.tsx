@@ -9,8 +9,8 @@ const SPOTIFY_EMBED_SRC =
 
 export default function SpotifySection() {
   return (
-    <section id="musica" className="relative py-24 px-4 overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-sky-950/90 via-violet-950/90 to-sky-950/95" />
+    <section id="musica" className="relative py-24 px-4 overflow-hidden stripes-football">
+      <div className="absolute inset-0 bg-gradient-to-b from-violet-950/95 via-red-950/25 to-sky-950/95" />
       <div className="relative z-10 max-w-xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}

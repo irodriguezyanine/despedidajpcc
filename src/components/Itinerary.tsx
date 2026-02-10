@@ -52,10 +52,10 @@ function DayBlock({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.5, delay }}
-      className="glass-card rounded-2xl p-5 sm:p-6 border border-white/20"
+      className="glass-card rounded-2xl p-5 sm:p-6 border border-white/20 hover:border-amber-400/30 hover:shadow-[0_0_30px_rgba(251,191,36,0.08)] transition-all duration-300"
     >
       <div className="flex items-center gap-2 mb-4">
-        <Calendar className="w-5 h-5 text-teal-400" />
+        <Calendar className="w-5 h-5 text-amber-400" />
         <h3 className="font-display text-xl sm:text-2xl text-white">{day}</h3>
       </div>
       <p className="text-sm text-white/60 font-body mb-4">{date}</p>
@@ -68,7 +68,7 @@ function DayBlock({
               row.activity === "—" && "opacity-50"
             )}
           >
-            <span className="font-mono text-xs sm:text-sm text-teal-300/90 shrink-0 flex items-center gap-1">
+            <span className="font-mono text-xs sm:text-sm text-amber-200/80 shrink-0 flex items-center gap-1">
               <Clock className="w-3 h-3" />
               {row.time}
             </span>
@@ -84,8 +84,9 @@ function DayBlock({
 
 export default function Itinerary() {
   return (
-    <section id="itinerario" className="relative py-24 px-4 overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-sky-950/90 via-violet-950/90 to-sky-950/95" />
+    <section id="itinerario" className="relative py-24 px-4 overflow-hidden stripes-football">
+      <div className="absolute inset-0 bg-gradient-to-b from-violet-950/95 via-red-950/30 to-sky-950/95" />
+      <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 via-transparent to-red-500/5" />
       <div className="relative z-10 max-w-4xl mx-auto">
         <motion.h2
           initial={{ opacity: 0, y: 20 }}
@@ -93,7 +94,7 @@ export default function Itinerary() {
           viewport={{ once: true }}
           className="font-display text-3xl sm:text-4xl md:text-5xl text-center mb-4 text-white"
         >
-          ITINERARIO <span className="text-teal-400">VIERNES Y SÁBADO</span>
+          ITINERARIO <span className="text-amber-400">VIERNES Y SÁBADO</span>
         </motion.h2>
         <motion.p
           initial={{ opacity: 0 }}
