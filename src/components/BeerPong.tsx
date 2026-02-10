@@ -141,6 +141,7 @@ export default function BeerPong() {
   const [stage, setStage] = useState<1 | 2>(1);
   const [mounted, setMounted] = useState(false);
   const [showCanvas, setShowCanvas] = useState(false);
+  const [tableVisible, setTableVisible] = useState(false);
   const [celebratingHit, setCelebratingHit] = useState<number | null>(null);
   const celebratingHitAtRef = useRef<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -918,15 +919,20 @@ export default function BeerPong() {
             >
               Jugar
             </motion.button>
-            <p className="text-white/60 font-body text-sm mt-6 text-center max-w-sm mx-auto">
-              Juega, no seas cagon !
-            </p>
-            <a
-              href="#beerpong-tabla"
-              className="mt-3 inline-block font-body text-sm text-amber-400 hover:text-amber-300 underline transition-colors"
+            <button
+              type="button"
+              onClick={() => {
+                setTableVisible((v) => !v);
+                if (!tableVisible) {
+                  requestAnimationFrame(() => {
+                    document.getElementById("beerpong-tabla")?.scrollIntoView({ behavior: "smooth" });
+                  });
+                }
+              }}
+              className="mt-6 inline-block font-body text-sm text-amber-400 hover:text-amber-300 underline transition-colors"
             >
-              Ver tabla
-            </a>
+              {tableVisible ? "Ocultar tabla" : "Ver tabla"}
+            </button>
           </motion.div>
         )}
 
@@ -943,15 +949,16 @@ export default function BeerPong() {
               <span className="font-mono text-white/70 text-sm">
                 Vasos: {remainingCups}/{TOTAL_CUPS}
               </span>
-              <div className="flex items-center gap-1">
-                {[1, 2].map((i) => (
+              <div className="flex items-center gap-1.5" title={`Vidas: ${lives}`}>
+                {Array.from({ length: Math.max(2, lives) }, (_, i) => i + 1).map((i) => (
                   <span
                     key={i}
-                    className={`w-6 h-6 rounded flex items-center justify-center text-xs ${
-                      i <= lives ? "bg-red-500/80 text-white" : "bg-white/10 text-white/30"
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-base ${
+                      i <= lives ? "opacity-100" : "opacity-25"
                     }`}
+                    aria-hidden
                   >
-                    {i <= lives ? "♥" : "♡"}
+                    ⚽
                   </span>
                 ))}
               </div>
@@ -1068,12 +1075,27 @@ export default function BeerPong() {
                 </motion.p>
               )}
             </AnimatePresence>
+
+            <button
+              type="button"
+              onClick={() => {
+                setTableVisible((v) => !v);
+                if (!tableVisible) {
+                  requestAnimationFrame(() => {
+                    document.getElementById("beerpong-tabla")?.scrollIntoView({ behavior: "smooth" });
+                  });
+                }
+              }}
+              className="mt-4 font-body text-sm text-amber-400 hover:text-amber-300 underline transition-colors"
+            >
+              {tableVisible ? "Ocultar tabla" : "Ver tabla"}
+            </button>
           </>
         </motion.div>
         )}
 
-        {/* Tabla de puntajes: visible en etapa 1 y 2 para poder "Ver tabla" antes de jugar */}
-        {mounted && (
+        {/* Tabla de puntajes: solo visible al hacer clic en "Ver tabla" */}
+        {mounted && tableVisible && (
           <motion.div
             id="beerpong-tabla"
             initial={{ opacity: 0, y: 12 }}
