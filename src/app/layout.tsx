@@ -27,26 +27,26 @@ const jetbrainsMono = JetBrains_Mono({
 const siteUrl = "https://despedidajpcc.vercel.app";
 
 export const metadata: Metadata = {
-  title: "DESPEDIDA DE SOLTEROS JPCC | ALAMICOS R.F.C | Lomas de Mantagua 2026",
-  description: "Despedida de solteros JPCC — ALAMICOS R.F.C. Lomas de Mantagua, Viña del Mar. 20-22 Febrero 2026. Playa, verano y fiesta.",
+  title: "DESPEDIDA DE SOLTERO JPCC | ALAMICOS . Maitencillo 2026",
+  description: "CUENTA REGRESIVA: 20 - 22 Febrero 2026",
   icons: {
     icon: "/logo-alamicos.png",
     apple: "/logo-alamicos.png",
   },
   openGraph: {
-    title: "DESPEDIDA DE SOLTEROS JPCC | ALAMICOS · Lomas de Mantagua 2026",
-    description: "Despedida de solteros JPCC — ALAMICOS · Reggaeton Fútbol Club. Lomas de Mantagua, Viña del Mar. 20-22 Febrero 2026.",
+    title: "DESPEDIDA DE SOLTERO JPCC | ALAMICOS . Maitencillo 2026",
+    description: "CUENTA REGRESIVA: 20 - 22 Febrero 2026",
     url: siteUrl,
     siteName: "Despedida JPCC Alamicos",
     locale: "es_CL",
     type: "website",
-    images: [{ url: `${siteUrl}/estadio-fondo.png`, width: 1200, height: 630, alt: "Despedida JPCC Alamicos" }],
+    images: [{ url: `${siteUrl}/logo-alamicos.png`, width: 512, height: 512, alt: "ALAMICOS" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "DESPEDIDA DE SOLTEROS JPCC | ALAMICOS · Lomas de Mantagua 2026",
-    description: "20-22 Febrero 2026. Lomas de Mantagua, Viña del Mar. Playa, verano y fiesta.",
-    images: [`${siteUrl}/estadio-fondo.png`],
+    title: "DESPEDIDA DE SOLTERO JPCC | ALAMICOS . Maitencillo 2026",
+    description: "CUENTA REGRESIVA: 20 - 22 Febrero 2026",
+    images: [`${siteUrl}/logo-alamicos.png`],
   },
 };
 
