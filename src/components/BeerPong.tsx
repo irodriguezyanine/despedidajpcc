@@ -130,6 +130,7 @@ export default function BeerPong() {
   const [lastResult, setLastResult] = useState<"hit" | "miss" | null>(null);
   const [showWinModal, setShowWinModal] = useState(false);
   const [savedFeedback, setSavedFeedback] = useState(false);
+  const [stage, setStage] = useState<1 | 2>(1);
 
   const remainingCups = TOTAL_CUPS - cupsHit.length;
 
@@ -189,6 +190,42 @@ export default function BeerPong() {
     setCurrentPlayerId(id);
     setNewName("");
   }, [newName, participants]);
+
+  // Pasar a etapa 2: registrar jugador (si hace falta), reiniciar partida y mostrar cancha
+  const startGame = useCallback(() => {
+    const name = newName.trim();
+    if (!name) return;
+    const existing = participants.find(
+      (p) => p.name.toLowerCase() === name.toLowerCase()
+    );
+    if (existing) {
+      setCurrentPlayerId(existing.id);
+    } else {
+      const id = generateId();
+      setParticipants((prev) => [...prev, { id, name, score: 0 }]);
+      setCurrentPlayerId(id);
+    }
+    setNewName("");
+    setStage(2);
+    setLives(2);
+    setCupsHit([]);
+    cupsHitRef.current = [];
+    setGameOver(false);
+    setShowWinModal(false);
+    setLastResult(null);
+    const g = gameRef.current;
+    g.x = BALL_START_X;
+    g.y = BALL_START_Y;
+    g.vx = 0;
+    g.vy = 0;
+  }, [newName, participants]);
+
+  // Salir: volver a etapa 1 (solo sobre la cancha)
+  const exitToStage1 = useCallback(() => {
+    setStage(1);
+    setShowWinModal(false);
+    setGameOver(false);
+  }, []);
 
   const getCanvasPoint = useCallback((clientX: number, clientY: number) => {
     const el = canvasRef.current;
@@ -412,7 +449,7 @@ export default function BeerPong() {
   // Solo se activa si haces click EN la bola blanca
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (participants.length === 0 || isFlying || gameOver || remainingCups <= 0 || ballSelected) return;
+      if (stage !== 2 || participants.length === 0 || isFlying || gameOver || remainingCups <= 0 || ballSelected) return;
       const p = getCanvasPoint(e.clientX, e.clientY);
       if (!p) return;
       const g = gameRef.current;
@@ -425,7 +462,7 @@ export default function BeerPong() {
         setPullLine({ x1: g.x, y1: g.y, x2: p.x, y2: p.y });
       }
     },
-    [participants.length, isFlying, gameOver, remainingCups, ballSelected, getCanvasPoint]
+    [stage, participants.length, isFlying, gameOver, remainingCups, ballSelected, getCanvasPoint]
   );
 
   // Listeners globales: una sola vez, usan refs para no depender del estado
@@ -544,15 +581,15 @@ export default function BeerPong() {
     if (ctx) draw(ctx);
   }, [draw, cupsHit, lives]);
 
-  // Al pasar a etapa 2 (jugador unido), forzar redibujado del canvas para que se vean vasos y bola
+  // Al pasar a etapa 2, forzar redibujado del canvas para que se vean vasos y bola
   useEffect(() => {
-    if (participants.length === 0) return;
+    if (stage !== 2) return;
     const raf = requestAnimationFrame(() => {
       const ctx = canvasRef.current?.getContext("2d");
       if (ctx) draw(ctx);
     });
     return () => cancelAnimationFrame(raf);
-  }, [participants.length, draw]);
+  }, [stage, draw]);
 
   const sortedParticipants = [...participants].sort((a, b) => b.score - a.score);
 
@@ -604,75 +641,41 @@ export default function BeerPong() {
           Desliza el dedo hacia los vasos para lanzar
         </motion.p>
 
-        {/* Etapa 1: solo si aún no hay jugador unido — Tu nombre, Unirse y tabla */}
-        {participants.length === 0 && (
-          <>
-            <div className="flex flex-wrap gap-2 mb-4">
-              <input
-                type="text"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addParticipant()}
-                placeholder="Tu nombre"
-                className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 font-body text-sm focus:outline-none focus:border-red-400/50"
-              />
-              <button
-                type="button"
-                onClick={addParticipant}
-                className="px-5 py-2.5 rounded-xl font-body text-sm font-medium bg-red-500/80 text-white border border-red-400/50 hover:bg-red-500 transition-colors"
-              >
-                Unirse
-              </button>
-            </div>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="glass-card rounded-xl p-4 mb-4 border border-white/20"
+        {/* Etapa 1: Iniciar juego — Nombre + Jugar (sin tabla) */}
+        {stage === 1 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card rounded-2xl p-8 border-2 border-amber-500/30 text-center"
+          >
+            <h3 className="font-display text-xl sm:text-2xl text-white mb-6">
+              Iniciar juego
+            </h3>
+            <label className="block text-left text-white/80 font-body text-sm mb-2">
+              Nombre:
+            </label>
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && startGame()}
+              placeholder="Usuario completa nombre"
+              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 font-body text-sm focus:outline-none focus:border-amber-400/50 mb-6"
+            />
+            <motion.button
+              type="button"
+              onClick={startGame}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.98 }}
+              className="px-8 py-4 rounded-xl font-display text-lg text-white bg-amber-500 border border-amber-400/50 hover:bg-amber-600"
             >
-              <p className="font-display text-sm text-white/80 mb-3 uppercase tracking-wider">
-                Tabla de puntajes (guardados)
-              </p>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left font-body text-sm">
-                  <thead>
-                    <tr className="text-white/60 border-b border-white/10">
-                      <th className="py-2 pr-3">#</th>
-                      <th className="py-2 pr-3">Nombre</th>
-                      <th className="py-2 text-right">Puntos</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedParticipants.length === 0 ? (
-                      <tr>
-                        <td colSpan={3} className="py-4 text-center text-white/40 text-sm">
-                          Únete para jugar y aparecer en la tabla
-                        </td>
-                      </tr>
-                    ) : (
-                      sortedParticipants.map((p, idx) => (
-                        <tr
-                          key={p.id}
-                          className="border-b border-white/5 last:border-0"
-                        >
-                          <td className="py-2 pr-3 text-white/70">{idx + 1}</td>
-                          <td className="py-2 pr-3 text-white font-medium">
-                            {getDisplayName(p.name, idx)}
-                          </td>
-                          <td className="py-2 text-right text-amber-400 font-mono font-bold">
-                            {p.score}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </motion.div>
-          </>
+              Jugar
+            </motion.button>
+          </motion.div>
         )}
 
-        {/* Etapa 2: ya hay jugador unido — tablero primero, tabla abajo; sin "Tu nombre"/Unirse ni "Quién lanza" */}
-        {participants.length > 0 && (
+        {/* Etapa 2: Cancha + tabla abajo; modal solo sobre la cancha al ganar/perder */}
+        {stage === 2 && (
           <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -707,109 +710,96 @@ export default function BeerPong() {
             )}
           </div>
 
-          {showWinModal ? (
-            <div className="rounded-xl bg-black/50 border-2 border-amber-500/50 p-8 text-center">
-              <p className="font-display text-2xl text-amber-400 mb-2">¡GANASTE!</p>
-              <p className="font-body text-white/90 mb-6">
-                ¿Quieres doblar la apuesta?
-              </p>
-              <div className="flex flex-wrap gap-3 justify-center">
-                <motion.button
-                  onClick={startNewRound}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="px-6 py-3 rounded-xl font-display text-base text-white bg-amber-500 border border-amber-400/50 hover:bg-amber-600"
-                >
-                  Jugar de nuevo
-                </motion.button>
-                <motion.button
-                  onClick={() => {
-                    saveLeaderboard(participants);
-                    setSavedFeedback(true);
-                    setTimeout(() => setSavedFeedback(false), 2000);
-                  }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="px-6 py-3 rounded-xl font-display text-base text-white bg-white/20 border border-white/30 hover:bg-white/30"
-                >
-                  Guardar resultado
-                </motion.button>
-              </div>
-              {savedFeedback && (
-                <p className="text-emerald-400 text-sm mt-3">Resultado guardado</p>
+          <>
+            {/* Cancha: canvas y modal solo sobre ella cuando gana/pierde */}
+            <div
+              key="game-board"
+              className="relative mx-auto rounded-xl border-2 border-amber-500/40 overflow-hidden touch-none select-none"
+            >
+              <canvas
+                ref={canvasRef}
+                width={CANVAS_W}
+                height={CANVAS_H}
+                className="block w-full h-auto"
+                style={{ touchAction: "none", cursor: "crosshair" }}
+                onPointerDown={handlePointerDown}
+              />
+              {(showWinModal || gameOver) && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/85 rounded-xl p-6">
+                  <div className="text-center">
+                    {showWinModal ? (
+                      <>
+                        <p className="font-display text-2xl text-amber-400 mb-2">¡GANASTE!</p>
+                        <p className="font-body text-white/80 text-sm mb-6">¿Seguir jugando?</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-display text-2xl text-red-400 mb-2">GAME OVER</p>
+                        <p className="font-body text-white/80 text-sm mb-1">
+                          Puntaje: <span className="font-bold text-amber-400">{currentScore}</span>
+                        </p>
+                        <p className="font-body text-white/70 text-xs mb-6">
+                          Puesto {currentRank}º en la tabla
+                        </p>
+                      </>
+                    )}
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                      <motion.button
+                        onClick={showWinModal ? startNewRound : startNewGame}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="px-6 py-3 rounded-xl font-display text-base text-white bg-amber-500 border border-amber-400/50 hover:bg-amber-600"
+                      >
+                        Seguir jugando
+                      </motion.button>
+                      <motion.button
+                        onClick={exitToStage1}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="px-6 py-3 rounded-xl font-display text-base text-white bg-white/20 border border-white/40 hover:bg-white/30"
+                      >
+                        Salir
+                      </motion.button>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
-          ) : gameOver ? (
-            <div className="rounded-xl bg-black/50 border-2 border-red-500/50 p-8 text-center">
-              <p className="font-display text-2xl text-red-400 mb-4">GAME OVER</p>
-              <p className="font-body text-white/90 mb-1">
-                Puntaje: <span className="font-bold text-amber-400">{currentScore}</span>
-              </p>
-              <p className="font-body text-white/90 mb-2">
-                Quedaste en el puesto{" "}
-                <span className="font-bold text-amber-400">{currentRank}º</span> de la tabla
-                <span className="block text-white/60 text-xs mt-1">(posición guardada)</span>
-              </p>
-              <motion.button
-                onClick={startNewGame}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.98 }}
-                className="px-8 py-4 rounded-xl font-display text-lg text-white bg-red-500 border border-red-400/50 hover:bg-red-600 mt-6"
-              >
-                REINICIAR
-              </motion.button>
-            </div>
-          ) : (
-            <>
-              <div
-                key="game-board"
-                className="mx-auto rounded-xl border-2 border-amber-500/40 overflow-hidden touch-none select-none"
-              >
-                <canvas
-                  ref={canvasRef}
-                  width={CANVAS_W}
-                  height={CANVAS_H}
-                  className="block w-full h-auto"
-                  style={{ touchAction: "none", cursor: "crosshair" }}
-                  onPointerDown={handlePointerDown}
-                />
-              </div>
 
-              <p className="text-center text-white/50 text-xs font-body mt-3">
-                1) Click en la bola blanca · 2) Arrastra para atrás (hacia ti) en cualquier parte · 3) Suelta para lanzar
-              </p>
+            <p className="text-center text-white/50 text-xs font-body mt-3">
+              1) Click en la bola blanca · 2) Arrastra para atrás (hacia ti) en cualquier parte · 3) Suelta para lanzar
+            </p>
 
-              <AnimatePresence mode="wait">
-                {lastResult === "hit" && (
-                  <motion.p
-                    key="hit"
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="text-center text-amber-400 font-display text-xl mt-3"
-                  >
-                    ¡PUNTO!
-                  </motion.p>
-                )}
-                {lastResult === "miss" && (
-                  <motion.p
-                    key="miss"
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="text-center text-red-400 font-body text-sm mt-3"
-                  >
-                    Fallo · -1 vida
-                  </motion.p>
-                )}
-              </AnimatePresence>
-            </>
-          )}
+            <AnimatePresence mode="wait">
+              {lastResult === "hit" && (
+                <motion.p
+                  key="hit"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-center text-amber-400 font-display text-xl mt-3"
+                >
+                  ¡PUNTO!
+                </motion.p>
+              )}
+              {lastResult === "miss" && (
+                <motion.p
+                  key="miss"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-center text-red-400 font-body text-sm mt-3"
+                >
+                  Fallo · -1 vida
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </>
         </motion.div>
         )}
 
         {/* Tabla de puntajes debajo del tablero (etapa 2) */}
-        {participants.length > 0 && (
+        {stage === 2 && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
