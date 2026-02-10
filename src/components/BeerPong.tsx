@@ -573,6 +573,7 @@ export default function BeerPong() {
               : prev
           );
           setLastResult("hit");
+          setLives((prev) => Math.min(prev + 1, 6)); // +1 vida al hacer punto (máx 6)
           g.vx = 0;
           g.vy = 0;
           g.x = BALL_START_X;
@@ -586,9 +587,18 @@ export default function BeerPong() {
       }
     }
 
-    // Cuando la bola se detiene sin haber encestado: volver a posición inicial
+    // Cuando la bola se detiene sin haber encestado: pierde 1 vida (tiro fallido)
     if (speed < STOP_SPEED) {
       bouncedBetweenCupsRef.current = false;
+      setLastResult("miss");
+      setLives((prev) => {
+        const next = prev - 1;
+        if (next <= 0) {
+          haptic("heavy");
+          setGameOver(true);
+        }
+        return next;
+      });
       g.vx = 0;
       g.vy = 0;
       g.x = BALL_START_X;
