@@ -16,13 +16,13 @@ const CANVAS_W = 340;
 const CANVAS_H = 440;
 const TABLE_MARGIN = 20;
 const BALL_R = 10;
-const CUP_R = 17;        // radio para que cuente: solo un poco; punto solo si la bola se DETIENE dentro
-const FRICTION = 0.976;  // más fricción = más difícil controlar en móvil
+const CUP_R = 18;        // radio para enceste (punto solo si la bola se detiene dentro)
+const FRICTION = 0.978;  // un poco más fricción = la bola se detiene algo más en el vaso
 const PULL_SCALE = 0.10;
-const PULL_SCALE_MOBILE = 0.135; // en celular: más sensible, mismo arrastre = más velocidad (más difícil)
+const PULL_SCALE_MOBILE = 0.115; // en celular: sensible pero no tan salvaje
 const MAX_SPEED = 26;
 const MIN_PULL = 22;
-const STOP_SPEED = 0.35; // por debajo de esto la bola "se detiene"; solo entonces cuenta enceste
+const STOP_SPEED = 0.6;  // por debajo de esto cuenta como "detenida" (un poco más permisivo)
 
 // Mesa: zona jugable (nosotros abajo, vasos arriba)
 const TABLE_LEFT = TABLE_MARGIN;
@@ -61,9 +61,9 @@ const SOFT_THRESHOLD_DISPLAY = MAX_SPEED * 0.38;
 // Zona de vasos para rebote entre vasos (y)
 const CUP_ZONE_TOP = 45;
 const CUP_ZONE_BOTTOM = 180;
-const GAP_RADIUS = CUP_R + 20;   // rebote entre vasos: más fácil que dispare
-const CUP_BOUNCE_SPEED_MAX = 9;  // hasta esta velocidad puede rebotar entre vasos (más rebotes)
-const CUP_BOUNCE_STRENGTH = 1.25; // multiplicador del rebote (más desvío en móvil)
+const GAP_RADIUS = CUP_R + 20;   // rebote entre vasos
+const CUP_BOUNCE_SPEED_MAX = 8;  // hasta esta velocidad puede rebotar entre vasos
+const CUP_BOUNCE_STRENGTH = 1.05; // rebote más suave (un poco menos caótico)
 
 export interface Participant {
   id: string;
@@ -188,13 +188,19 @@ export default function BeerPong() {
     ballSelectedRef.current = ballSelected;
   }, [cupsHit, currentPlayerId, participants, ballSelected]);
 
-  // Leaderboard: solo Rodri con 33 puntos (se eliminaron entradas de prueba)
+  // Leaderboard: cargar desde localStorage; si está vacío, iniciar con Rodri 33
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const rodriOnly = [{ id: "rodri-33", name: "Rodri", score: 33 }];
-    saveLeaderboard(rodriOnly);
-    setParticipants(rodriOnly);
-    setCurrentPlayerId("rodri-33");
+    const saved = loadLeaderboard();
+    if (saved.length > 0) {
+      setParticipants(saved);
+      setCurrentPlayerId((prev) => prev || saved[0].id);
+    } else {
+      const rodriOnly = [{ id: "rodri-33", name: "Rodri", score: 33 }];
+      saveLeaderboard(rodriOnly);
+      setParticipants(rodriOnly);
+      setCurrentPlayerId("rodri-33");
+    }
   }, []);
 
   // Cargar logo Alamicos para dibujarlo dentro del tablero verde
