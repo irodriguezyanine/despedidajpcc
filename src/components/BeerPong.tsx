@@ -76,16 +76,17 @@ function generateId() {
   return `p-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function loadLeaderboard(): Participant[] {
-  if (typeof window === "undefined") return [];
+function loadLeaderboard(): { data: Participant[]; hadKey: boolean } {
+  if (typeof window === "undefined") return { data: [], hadKey: false };
   try {
     const raw = localStorage.getItem(LEADERBOARD_KEY);
-    if (!raw) return [];
+    if (raw === null || raw === undefined) return { data: [], hadKey: false };
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((p) => p && typeof p.id === "string" && typeof p.name === "string" && typeof p.score === "number");
+    if (!Array.isArray(parsed)) return { data: [], hadKey: true };
+    const data = parsed.filter((p) => p && typeof p.id === "string" && typeof p.name === "string" && typeof p.score === "number");
+    return { data, hadKey: true };
   } catch {
-    return [];
+    return { data: [], hadKey: true };
   }
 }
 
@@ -191,19 +192,27 @@ export default function BeerPong() {
     ballSelectedRef.current = ballSelected;
   }, [cupsHit, currentPlayerId, participants, ballSelected]);
 
-  // Leaderboard: cargar desde localStorage; si está vacío, iniciar con Rodri 33
+  // Leaderboard: cargar desde localStorage. Solo sembrar Rodri si la clave NUNCA existió (primera visita).
+  const hasLoadedLeaderboardRef = useRef(false);
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const saved = loadLeaderboard();
+    if (typeof window === "undefined" || hasLoadedLeaderboardRef.current) return;
+    hasLoadedLeaderboardRef.current = true;
+    const { data: saved, hadKey } = loadLeaderboard();
     if (saved.length > 0) {
       setParticipants(saved);
       setCurrentPlayerId((prev) => prev || saved[0].id);
-    } else {
-      const rodriOnly = [{ id: "rodri-33", name: "Rodri", score: 33 }];
-      saveLeaderboard(rodriOnly);
-      setParticipants(rodriOnly);
-      setCurrentPlayerId("rodri-33");
+      participantsRef.current = saved;
+      return;
     }
+    if (hadKey) {
+      setParticipants([]);
+      return;
+    }
+    const rodriOnly = [{ id: "rodri-33", name: "Rodri", score: 33 }];
+    saveLeaderboard(rodriOnly);
+    setParticipants(rodriOnly);
+    setCurrentPlayerId("rodri-33");
+    participantsRef.current = rodriOnly;
   }, []);
 
   // Cargar logo Alamicos para dibujarlo dentro del tablero verde
