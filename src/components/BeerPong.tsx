@@ -81,7 +81,9 @@ function loadLeaderboard(): Participant[] {
   try {
     const raw = localStorage.getItem(LEADERBOARD_KEY);
     if (!raw) return [];
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((p) => p && typeof p.id === "string" && typeof p.name === "string" && typeof p.score === "number");
   } catch {
     return [];
   }
@@ -239,7 +241,12 @@ export default function BeerPong() {
       return;
     }
     const id = generateId();
-    setParticipants((prev) => [...prev, { id, name, score: 0 }]);
+    const newEntry = { id, name, score: 0 };
+    setParticipants((prev) => {
+      const next = [...prev, newEntry];
+      saveLeaderboard(next);
+      return next;
+    });
     setCurrentPlayerId(id);
     setNewName("");
   }, [newName, participants]);
@@ -255,7 +262,12 @@ export default function BeerPong() {
       setCurrentPlayerId(existing.id);
     } else {
       const id = generateId();
-      setParticipants((prev) => [...prev, { id, name, score: 0 }]);
+      const newEntry = { id, name, score: 0 };
+      setParticipants((prev) => {
+        const next = [...prev, newEntry];
+        saveLeaderboard(next);
+        return next;
+      });
       setCurrentPlayerId(id);
     }
     setNewName("");
@@ -565,13 +577,14 @@ export default function BeerPong() {
           haptic("medium");
           cupsHitRef.current = [...curCups, i].sort((a, b) => a - b);
           setCupsHit(cupsHitRef.current);
-          setParticipants((prev) =>
-            curPlayer
-              ? prev.map((p) =>
-                  p.id === curPlayer ? { ...p, score: p.score + 1 } : p
-                )
-              : prev
-          );
+          const newParticipants = curPlayer
+            ? participantsRef.current.map((p) =>
+                p.id === curPlayer ? { ...p, score: p.score + 1 } : p
+              )
+            : participantsRef.current;
+          participantsRef.current = newParticipants;
+          setParticipants(newParticipants);
+          saveLeaderboard(newParticipants);
           setLastResult("hit");
           setLives((prev) => Math.min(prev + 1, 6)); // +1 vida al hacer punto (máx 6)
           g.vx = 0;
@@ -778,7 +791,11 @@ export default function BeerPong() {
         name: currentPlayer.name,
         score: 0,
       };
-      setParticipants((prev) => [...prev, newParticipant]);
+      setParticipants((prev) => {
+        const next = [...prev, newParticipant];
+        saveLeaderboard(next);
+        return next;
+      });
       setCurrentPlayerId(newParticipant.id);
     }
     setGameOver(false);
