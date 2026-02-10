@@ -89,6 +89,13 @@ function saveLeaderboard(data: Participant[]) {
   } catch {}
 }
 
+// Haptic feedback (mejora 8): vibración corta en móvil
+function haptic(type: "light" | "medium" | "heavy" = "light") {
+  if (typeof navigator === "undefined" || !navigator.vibrate) return;
+  const ms = type === "heavy" ? 30 : type === "medium" ? 20 : 10;
+  navigator.vibrate(ms);
+}
+
 export default function BeerPong() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef<{
@@ -132,6 +139,13 @@ export default function BeerPong() {
   const [showWinModal, setShowWinModal] = useState(false);
   const [savedFeedback, setSavedFeedback] = useState(false);
   const [stage, setStage] = useState<1 | 2>(1);
+  const [celebratingHit, setCelebratingHit] = useState<number | null>(null);
+  const celebratingHitAtRef = useRef<number>(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const canvasScaleRef = useRef(1);
+  const [canvasDpr, setCanvasDpr] = useState(1);
+  const logoImgRef = useRef<HTMLImageElement | null>(null);
+  const [logoLoaded, setLogoLoaded] = useState(false);
 
   const remainingCups = TOTAL_CUPS - cupsHit.length;
 
@@ -149,21 +163,31 @@ export default function BeerPong() {
     ballSelectedRef.current = ballSelected;
   }, [cupsHit, currentPlayerId, participants, ballSelected]);
 
+  // Mejora 10: cargar leaderboard solo en useEffect (nunca en render) para evitar hidratación
   useEffect(() => {
+    if (typeof window === "undefined") return;
     const raw = loadLeaderboard();
-    // Quitar "Prueba" y el segundo "Rodri" (Rodri intento 2) de la tabla
-    let loaded = raw.filter((p) => p.name !== "Prueba");
-    let rodriCount = 0;
-    loaded = loaded.filter((p) => {
-      if (p.name !== "Rodri") return true;
-      rodriCount += 1;
-      return rodriCount <= 1;
-    });
+    const namesToRemove = ["Prueba", "PRUEBA", "AGUANTE LA UC", "ALAMOS"];
+    let loaded = raw.filter((p) => !namesToRemove.includes(p.name));
     if (loaded.length < raw.length) saveLeaderboard(loaded);
     setParticipants(loaded);
     if (loaded.length > 0) {
       setCurrentPlayerId((id) => id || loaded[0].id);
     }
+  }, []);
+
+  // Cargar logo Alamicos para dibujarlo dentro del tablero verde
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const img = new Image();
+    img.src = "/logo-alamicos.png";
+    img.onload = () => {
+      logoImgRef.current = img;
+      setLogoLoaded(true);
+    };
+    return () => {
+      logoImgRef.current = null;
+    };
   }, []);
 
   useEffect(() => {
@@ -228,12 +252,13 @@ export default function BeerPong() {
     setGameOver(false);
   }, []);
 
+  // Coordenadas lógicas (0..CANVAS_W, 0..CANVAS_H) para coincidir con el dibujo escalado
   const getCanvasPoint = useCallback((clientX: number, clientY: number) => {
     const el = canvasRef.current;
     if (!el) return null;
     const rect = el.getBoundingClientRect();
-    const scaleX = el.width / rect.width;
-    const scaleY = el.height / rect.height;
+    const scaleX = CANVAS_W / rect.width;
+    const scaleY = CANVAS_H / rect.height;
     return {
       x: (clientX - rect.left) * scaleX,
       y: (clientY - rect.top) * scaleY,
@@ -242,6 +267,10 @@ export default function BeerPong() {
 
   const draw = useCallback(
     (ctx: CanvasRenderingContext2D) => {
+      const dpr = canvasScaleRef.current;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+
       const g = gameRef.current;
 
       ctx.fillStyle = "#0d1b24";
@@ -279,9 +308,31 @@ export default function BeerPong() {
       ctx.roundRect(TABLE_LEFT, TABLE_TOP, tableW, tableH, 8);
       ctx.stroke();
 
-      // Vasos (todos visibles en triángulo)
+      // Logo Alamicos fijo dentro del rectángulo verde: abajo de los vasos, arriba del centro, 60% opacidad
+      const logoImg = logoImgRef.current;
+      if (logoImg && logoImg.complete && logoImg.naturalWidth > 0) {
+        const logoW = 100;
+        const logoH = (logoImg.naturalHeight / logoImg.naturalWidth) * logoW;
+        const logoX = centerX - logoW / 2;
+        const logoY = 155 + CUP_R * 2 + (centerY - (155 + CUP_R * 2)) / 2 - logoH / 2;
+        ctx.save();
+        ctx.globalAlpha = 0.6;
+        ctx.drawImage(logoImg, logoX, logoY, logoW, logoH);
+        ctx.restore();
+      }
+
+      // Vasos (mejora 3: animación al meter — escala + "+1")
+      const now = typeof performance !== "undefined" ? performance.now() : 0;
+      const celebrating = celebratingHit !== null ? { i: celebratingHit, at: celebratingHitAtRef.current } : null;
+      const celebrateElapsed = celebrating ? (now - celebrating.at) / 400 : 1;
+      const celebrateScale = celebrating ? 1 + 0.35 * Math.max(0, 1 - celebrateElapsed) : 1;
       CUP_POSITIONS.forEach((pos, i) => {
-        if (cupsHitRef.current.includes(i)) return;
+        if (cupsHitRef.current.includes(i) && i !== celebratingHit) return;
+        const scale = i === celebratingHit ? celebrateScale : 1;
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+        ctx.scale(scale, scale);
+        ctx.translate(-pos.x, -pos.y);
         ctx.fillStyle = "#8b0000";
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, CUP_R, 0, Math.PI * 2);
@@ -294,11 +345,22 @@ export default function BeerPong() {
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText("🍺", pos.x, pos.y);
+        if (i === celebratingHit && celebrateElapsed < 1) {
+          ctx.fillStyle = "#fbbf24";
+          ctx.font = "bold 18px sans-serif";
+          ctx.fillText("+1", pos.x, pos.y - CUP_R - 12);
+        }
+        ctx.restore();
       });
 
       // Línea de “tirar para atrás” (desde la bola hasta el dedo)
       if (pullLine) {
-        ctx.strokeStyle = "rgba(255, 215, 0, 0.95)";
+        const dx = pullLine.x2 - pullLine.x1;
+        const dy = pullLine.y2 - pullLine.y1;
+        const len = Math.hypot(dx, dy);
+        const speed = Math.min(len * PULL_SCALE, MAX_SPEED);
+        const isInRange = speed < OVERSPEED_THRESHOLD;
+        ctx.strokeStyle = isInRange ? "rgba(255, 215, 0, 0.95)" : "rgba(255, 100, 100, 0.95)";
         ctx.lineWidth = 3;
         ctx.setLineDash([6, 4]);
         ctx.beginPath();
@@ -306,6 +368,41 @@ export default function BeerPong() {
         ctx.lineTo(pullLine.x2, pullLine.y2);
         ctx.stroke();
         ctx.setLineDash([]);
+        if (len > 15) {
+          const ax = pullLine.x2 - (dx / len) * 14;
+          const ay = pullLine.y2 - (dy / len) * 14;
+          const perp = 6;
+          const px = (-dy / len) * perp;
+          const py = (dx / len) * perp;
+          ctx.beginPath();
+          ctx.moveTo(pullLine.x2, pullLine.y2);
+          ctx.lineTo(ax + px, ay + py);
+          ctx.lineTo(ax - px, ay - py);
+          ctx.closePath();
+          ctx.fillStyle = isInRange ? "rgba(255, 215, 0, 0.9)" : "rgba(255, 100, 100, 0.9)";
+          ctx.fill();
+          ctx.stroke();
+        }
+        const barY = CANVAS_H - 28;
+        const barW = CANVAS_W - 40;
+        const barX = 20;
+        const barH = 10;
+        const thresholdRatio = OVERSPEED_THRESHOLD / MAX_SPEED;
+        ctx.fillStyle = "rgba(34, 197, 94, 0.6)";
+        ctx.fillRect(barX, barY, barW * thresholdRatio, barH);
+        ctx.fillStyle = "rgba(239, 68, 68, 0.6)";
+        ctx.fillRect(barX + barW * thresholdRatio, barY, barW * (1 - thresholdRatio), barH);
+        ctx.strokeStyle = "rgba(255,255,255,0.5)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(barX, barY, barW, barH);
+        const markerX = barX + (speed / MAX_SPEED) * barW;
+        ctx.fillStyle = "#fff";
+        ctx.beginPath();
+        ctx.arc(markerX, barY + barH / 2, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#333";
+        ctx.lineWidth = 1;
+        ctx.stroke();
       }
 
       // Pelota
@@ -317,7 +414,7 @@ export default function BeerPong() {
       ctx.lineWidth = 2;
       ctx.stroke();
     },
-    [pullLine]
+    [pullLine, celebratingHit, logoLoaded]
   );
 
   const gameLoop = useCallback(() => {
@@ -360,10 +457,12 @@ export default function BeerPong() {
       const dist = Math.hypot(g.x - c.x, g.y - c.y);
       if (dist < CUP_R) {
         if (speed >= OVERSPEED_THRESHOLD) {
-          // Exceso de fuerza: la bola pasa por arriba del vaso, no es punto
           break;
         }
         bouncedBetweenCupsRef.current = false;
+        celebratingHitAtRef.current = now;
+        setCelebratingHit(i);
+        haptic("medium");
         cupsHitRef.current = [...curCups, i].sort((a, b) => a - b);
         setCupsHit(cupsHitRef.current);
         setParticipants((prev) =>
@@ -416,7 +515,10 @@ export default function BeerPong() {
       setLastResult("miss");
       setLives((prev) => {
         const next = prev - 1;
-        if (next <= 0) setGameOver(true);
+        if (next <= 0) {
+          haptic("heavy");
+          setGameOver(true);
+        }
         return next;
       });
       g.x = BALL_START_X;
@@ -476,8 +578,8 @@ export default function BeerPong() {
       const canvas = canvasRef.current;
       if (!canvas) return null;
       const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
+      const scaleX = CANVAS_W / rect.width;
+      const scaleY = CANVAS_H / rect.height;
       return {
         x: (clientX - rect.left) * scaleX,
         y: (clientY - rect.top) * scaleY,
@@ -515,6 +617,7 @@ export default function BeerPong() {
 
       if (len < MIN_PULL) return;
 
+      haptic("light");
       const speed = Math.min(len * PULL_SCALE, MAX_SPEED);
       const vx = (dx / len) * speed;
       const vy = (dy / len) * speed;
@@ -583,7 +686,15 @@ export default function BeerPong() {
     if (ctx) draw(ctx);
   }, [draw, cupsHit, lives]);
 
-  // Al pasar a etapa 2, forzar redibujado del canvas para que se vean vasos y bola
+  // Mejora 7: canvas responsive con devicePixelRatio (solo en cliente)
+  useEffect(() => {
+    if (stage !== 2 || typeof window === "undefined") return;
+    const dpr = window.devicePixelRatio || 1;
+    canvasScaleRef.current = dpr;
+    setCanvasDpr(dpr);
+  }, [stage]);
+
+  // Al pasar a etapa 2, forzar redibujado del canvas
   useEffect(() => {
     if (stage !== 2) return;
     const raf = requestAnimationFrame(() => {
@@ -592,6 +703,24 @@ export default function BeerPong() {
     });
     return () => cancelAnimationFrame(raf);
   }, [stage, draw]);
+
+  // Mejora 3: animación "+1" al meter vaso — redibujar durante 400ms y luego limpiar
+  useEffect(() => {
+    if (celebratingHit === null) return;
+    const start = celebratingHitAtRef.current;
+    let rafId: number;
+    const tick = () => {
+      const ctx = canvasRef.current?.getContext("2d");
+      if (ctx) draw(ctx);
+      if (typeof performance !== "undefined" && performance.now() - start < 400) {
+        rafId = requestAnimationFrame(tick);
+      } else {
+        setCelebratingHit(null);
+      }
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [celebratingHit, draw]);
 
   const sortedParticipants = [...participants].sort((a, b) => b.score - a.score);
 
@@ -673,6 +802,9 @@ export default function BeerPong() {
             >
               Jugar
             </motion.button>
+            <p className="text-white/60 font-body text-sm mt-6 text-center max-w-sm mx-auto">
+              Arrastra desde la bola hacia atrás y suelta para lanzar. 2 vidas, 6 vasos.
+            </p>
           </motion.div>
         )}
 
@@ -715,15 +847,23 @@ export default function BeerPong() {
           <>
             {/* Cancha: canvas y modal solo sobre ella cuando gana/pierde */}
             <div
+              ref={containerRef}
               key="game-board"
               className="relative mx-auto rounded-xl border-2 border-amber-500/40 overflow-hidden touch-none select-none"
+              style={{ maxWidth: "100%" }}
             >
               <canvas
                 ref={canvasRef}
-                width={CANVAS_W}
-                height={CANVAS_H}
+                width={CANVAS_W * canvasDpr}
+                height={CANVAS_H * canvasDpr}
                 className="block w-full h-auto"
-                style={{ touchAction: "none", cursor: "crosshair" }}
+                style={{
+                  width: CANVAS_W,
+                  height: CANVAS_H,
+                  maxWidth: "100%",
+                  touchAction: "none",
+                  cursor: "crosshair",
+                }}
                 onPointerDown={handlePointerDown}
               />
               {(showWinModal || gameOver) && (
