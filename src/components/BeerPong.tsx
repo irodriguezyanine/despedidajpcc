@@ -16,8 +16,8 @@ const CANVAS_W = 340;
 const CANVAS_H = 440;
 const TABLE_MARGIN = 20;
 const BALL_R = 10;
-const CUP_R = 22;
-const FRICTION = 0.985;
+const CUP_R = 18;        // radio efectivo para encestar (más chico = más difícil)
+const FRICTION = 0.978; // más fricción = la bola llega con menos fuerza a los vasos
 const PULL_SCALE = 0.10; // 70–90% del arrastre llega al área de vasos; 100% se pasa
 const MAX_SPEED = 26;    // máxima potencia: bola se pasa por encima de la cancha (no punto)
 const MIN_PULL = 22;     // mínimo: no debe pasar la mitad de cancha
@@ -54,8 +54,8 @@ function getCupPositions(): { x: number; y: number }[] {
 
 const CUP_POSITIONS = getCupPositions();
 
-// Con potencia al máximo no se gana punto: solo tiros suaves pueden meter en el vaso
-const OVERSPEED_THRESHOLD = MAX_SPEED * 0.55;
+// Solo tiros suaves cuentan como punto; si va muy fuerte no encesta (más difícil: 0.40)
+const OVERSPEED_THRESHOLD = MAX_SPEED * 0.40;
 // Zona de vasos para rebote entre vasos (y)
 const CUP_ZONE_TOP = 50;
 const CUP_ZONE_BOTTOM = 175;
@@ -341,7 +341,7 @@ export default function BeerPong() {
         ctx.restore();
       }
 
-      // Vasos (mejora 3: animación al meter — escala + "+1")
+      // Vasos: simulación de cerveza (espuma cremosa arriba, líquido ámbar, burbujas, reflejo)
       const now = typeof performance !== "undefined" ? performance.now() : 0;
       const celebrating = celebratingHit !== null ? { i: celebratingHit, at: celebratingHitAtRef.current } : null;
       const celebrateElapsed = celebrating ? (now - celebrating.at) / 400 : 1;
@@ -353,21 +353,89 @@ export default function BeerPong() {
         ctx.translate(pos.x, pos.y);
         ctx.scale(scale, scale);
         ctx.translate(-pos.x, -pos.y);
-        ctx.fillStyle = "#8b0000";
+
+        const r = CUP_R - 1; // radio interior (borde del vaso fuera)
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+
+        // 1) Líquido ámbar/dorado (abajo): gradiente de cerveza
+        const yTop = pos.y - r;
+        const yBottom = pos.y + r;
+        const foamHeight = r * 0.42; // espuma gruesa arriba (como en la foto)
+        const liquidTop = pos.y - r + foamHeight;
+        const liquidGrad = ctx.createLinearGradient(pos.x, liquidTop, pos.x, yBottom);
+        liquidGrad.addColorStop(0, "#e8c65c");
+        liquidGrad.addColorStop(0.35, "#d4a84b");
+        liquidGrad.addColorStop(0.65, "#c4942a");
+        liquidGrad.addColorStop(1, "#9a6b1a");
+        ctx.fillStyle = liquidGrad;
+        ctx.fillRect(pos.x - r, liquidTop - 1, r * 2, r * 2);
+
+        // 2) Espuma cremosa (arriba): blanco/crema que cubre toda la superficie
+        const foamGrad = ctx.createLinearGradient(pos.x, yTop, pos.x, liquidTop + 2);
+        foamGrad.addColorStop(0, "#fffbf0");
+        foamGrad.addColorStop(0.2, "#f8f2e3");
+        foamGrad.addColorStop(0.5, "#efe6d0");
+        foamGrad.addColorStop(1, "#e8dbb8");
+        ctx.fillStyle = foamGrad;
+        ctx.fillRect(pos.x - r, yTop, r * 2, foamHeight + 2);
+
+        // 3) Reflejo suave (luz desde la izquierda)
+        const highlightGrad = ctx.createRadialGradient(
+          pos.x - r * 0.6, pos.y - r * 0.3, 0,
+          pos.x - r * 0.6, pos.y - r * 0.3, r * 1.2
+        );
+        highlightGrad.addColorStop(0, "rgba(255,255,255,0.35)");
+        highlightGrad.addColorStop(0.5, "rgba(255,255,255,0.08)");
+        highlightGrad.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = highlightGrad;
+        ctx.fillRect(pos.x - r, pos.y - r, r * 2, r * 2);
+
+        // 4) Burbujas en la espuma (tamaños variados, distribución irregular)
+        const seed = (i * 7 + 11) % 31;
+        const bubbleCount = 18;
+        for (let b = 0; b < bubbleCount; b++) {
+          const t = (seed + b * 5) % 17;
+          const u = (seed + b * 3) % 13;
+          const bx = pos.x + ((t * 1.3 + u * 0.5) % 1 - 0.5) * r * 1.6;
+          const by = pos.y - r * 0.75 + ((t * 0.7 + b * 0.4) % 1) * foamHeight * 1.1;
+          const br = 0.8 + (b % 4) * 0.7 + (u % 3) * 0.3; // 0.8 a ~2.5
+          const alpha = 0.5 + (b % 7) * 0.08;
+          ctx.fillStyle = `rgba(255, 252, 245, ${alpha})`;
+          ctx.beginPath();
+          ctx.arc(bx, by, br, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // Algunas burbujas más pequeñas en la zona líquido/espuma
+        for (let b = 0; b < 8; b++) {
+          const t = (seed + b * 11) % 19;
+          const bx = pos.x + ((t % 1) - 0.5) * r * 1.2;
+          const by = liquidTop + ((t * 0.3 + b) % 1) * r * 0.4;
+          ctx.fillStyle = `rgba(255, 248, 230, ${0.25 + (b % 4) * 0.1})`;
+          ctx.beginPath();
+          ctx.arc(bx, by, 0.6 + (b % 2) * 0.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.restore();
+
+        // Borde del vaso (rojo) y texto "+1" al celebrar
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+        ctx.scale(scale, scale);
+        ctx.translate(-pos.x, -pos.y);
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, CUP_R, 0, Math.PI * 2);
-        ctx.fill();
         ctx.strokeStyle = "#b22222";
         ctx.lineWidth = 2;
         ctx.stroke();
-        ctx.fillStyle = "rgba(255,255,255,0.3)";
-        ctx.font = "14px sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("🍺", pos.x, pos.y);
         if (i === celebratingHit && celebrateElapsed < 1) {
           ctx.fillStyle = "#fbbf24";
           ctx.font = "bold 18px sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
           ctx.fillText("+1", pos.x, pos.y - CUP_R - 12);
         }
         ctx.restore();
