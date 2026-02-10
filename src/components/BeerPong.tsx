@@ -806,6 +806,7 @@ export default function BeerPong() {
             </>
           )}
         </motion.div>
+        )}
 
         {/* Tabla de puntajes debajo del tablero (etapa 2) */}
         {participants.length > 0 && (

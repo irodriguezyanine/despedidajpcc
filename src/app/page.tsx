@@ -18,8 +18,8 @@ export default function Home() {
       <MapSection />
       <BeerPong />
       <SpotifySection />
-      <Footer />
       <InstagramSection />
+      <Footer />
     </main>
   );
 }
