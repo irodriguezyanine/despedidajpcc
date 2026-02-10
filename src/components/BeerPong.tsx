@@ -5,6 +5,7 @@ import {
   useRef,
   useCallback,
   useEffect,
+  useLayoutEffect,
 } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -465,8 +466,9 @@ export default function BeerPong() {
     [stage, participants.length, isFlying, gameOver, remainingCups, ballSelected, getCanvasPoint]
   );
 
-  // Listeners globales: una sola vez, usan refs para no depender del estado
-  useEffect(() => {
+  // Listeners globales para arrastrar y soltar: solo en etapa 2 cuando el canvas existe (useLayoutEffect para que el ref ya esté asignado)
+  useLayoutEffect(() => {
+    if (stage !== 2) return;
     const el = canvasRef.current;
     if (!el) return;
 
@@ -535,7 +537,7 @@ export default function BeerPong() {
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, []);
+  }, [stage]);
 
   // Reiniciar tras Game Over: nuevo intento en la tabla (mismo nombre, puntaje 0, "intento 2", "3"...)
   const startNewGame = useCallback(() => {
