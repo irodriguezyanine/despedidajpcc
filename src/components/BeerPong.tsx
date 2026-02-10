@@ -608,9 +608,9 @@ export default function BeerPong() {
     [stage, participants.length, isFlying, gameOver, remainingCups, ballSelected, getCanvasPoint]
   );
 
-  // Listeners globales para arrastrar y soltar: solo en etapa 2 cuando el canvas existe (useLayoutEffect para que el ref ya esté asignado)
+  // Listeners globales para arrastrar y soltar: solo en etapa 2 cuando el canvas existe (showCanvas asegura que el canvas ya esté montado)
   useLayoutEffect(() => {
-    if (stage !== 2) return;
+    if (stage !== 2 || !showCanvas) return;
     const el = canvasRef.current;
     if (!el) return;
 
@@ -676,11 +676,11 @@ export default function BeerPong() {
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onUp);
     return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    window.removeEventListener("pointercancel", onUp);
     };
-  }, [stage]);
+  }, [stage, showCanvas]);
 
   // Reiniciar tras Game Over: nuevo intento en la tabla (mismo nombre, puntaje 0, "intento 2", "3"...)
   const startNewGame = useCallback(() => {
@@ -889,8 +889,8 @@ export default function BeerPong() {
             <div
               ref={containerRef}
               key="game-board"
-              className="relative mx-auto rounded-xl border-2 border-amber-500/40 overflow-hidden touch-none select-none"
-              style={{ maxWidth: "100%" }}
+              className="relative mx-auto rounded-xl border-2 border-amber-500/40 overflow-hidden touch-none select-none w-full"
+              style={{ maxWidth: CANVAS_W }}
             >
               {!showCanvas ? (
                 <div
