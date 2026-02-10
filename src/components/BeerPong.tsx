@@ -168,6 +168,11 @@ export default function BeerPong() {
     if (participants.length > 0) saveLeaderboard(participants);
   }, [participants]);
 
+  // Al perder (game over), guardar puntaje y posición en la tabla
+  useEffect(() => {
+    if (gameOver && participants.length > 0) saveLeaderboard(participants);
+  }, [gameOver, participants]);
+
   const addParticipant = useCallback(() => {
     const name = newName.trim();
     if (!name) return;
@@ -407,7 +412,7 @@ export default function BeerPong() {
   // Solo se activa si haces click EN la bola blanca
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (isFlying || gameOver || remainingCups <= 0 || ballSelected) return;
+      if (participants.length === 0 || isFlying || gameOver || remainingCups <= 0 || ballSelected) return;
       const p = getCanvasPoint(e.clientX, e.clientY);
       if (!p) return;
       const g = gameRef.current;
@@ -420,7 +425,7 @@ export default function BeerPong() {
         setPullLine({ x1: g.x, y1: g.y, x2: p.x, y2: p.y });
       }
     },
-    [isFlying, gameOver, remainingCups, ballSelected, getCanvasPoint]
+    [participants.length, isFlying, gameOver, remainingCups, ballSelected, getCanvasPoint]
   );
 
   // Listeners globales: una sola vez, usan refs para no depender del estado
@@ -743,17 +748,26 @@ export default function BeerPong() {
               <p className="font-body text-white/90 mb-1">
                 Puntaje: <span className="font-bold text-amber-400">{currentScore}</span>
               </p>
-              <p className="font-body text-white/90 mb-6">
-                Lugar general: <span className="font-bold text-amber-400">{currentRank}º</span>
+              <p className="font-body text-white/90 mb-2">
+                Quedaste en el puesto{" "}
+                <span className="font-bold text-amber-400">{currentRank}º</span> de la tabla
+                <span className="block text-white/60 text-xs mt-1">(posición guardada)</span>
               </p>
               <motion.button
                 onClick={startNewGame}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.98 }}
-                className="px-8 py-4 rounded-xl font-display text-lg text-white bg-red-500 border border-red-400/50 hover:bg-red-600"
+                className="px-8 py-4 rounded-xl font-display text-lg text-white bg-red-500 border border-red-400/50 hover:bg-red-600 mt-6"
               >
                 REINICIAR
               </motion.button>
+            </div>
+          ) : participants.length === 0 ? (
+            <div className="rounded-xl bg-black/40 border-2 border-amber-500/30 p-8 text-center">
+              <p className="font-body text-white/80 mb-4">
+                Escribe tu nombre arriba y haz clic en <strong>Unirse</strong> para jugar.
+              </p>
+              <p className="text-white/50 text-sm">No puedes lanzar sin registrarte.</p>
             </div>
           ) : (
             <>

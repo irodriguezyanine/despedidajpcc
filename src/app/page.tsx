@@ -6,6 +6,7 @@ import MapSection from "@/components/MapSection";
 import BeerPong from "@/components/BeerPong";
 import SpotifySection from "@/components/SpotifySection";
 import Footer from "@/components/Footer";
+import InstagramSection from "@/components/InstagramSection";
 
 export default function Home() {
   return (
@@ -18,6 +19,7 @@ export default function Home() {
       <BeerPong />
       <SpotifySection />
       <Footer />
+      <InstagramSection />
     </main>
   );
 }

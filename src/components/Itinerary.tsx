@@ -85,7 +85,11 @@ function DayBlock({
 export default function Itinerary() {
   return (
     <section id="itinerario" className="relative py-24 px-4 overflow-hidden stripes-football">
-      <div className="absolute inset-0 bg-gradient-to-b from-violet-950/95 via-red-950/30 to-sky-950/95" />
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: "url(/itinerario-playa.png)" }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-violet-950/90 via-red-950/40 to-sky-950/92" />
       <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 via-transparent to-red-500/5" />
       <div className="relative z-10 max-w-4xl mx-auto">
         <motion.h2

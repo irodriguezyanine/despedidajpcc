@@ -49,7 +49,7 @@ export default function RootLayout({
         />
         {/* Logo Alamicos encima del verde, transparente para que se vea como marca de agua */}
         <div
-          className="fixed inset-0 z-0 bg-center bg-no-repeat bg-[length:min(70vh,70vw)] opacity-[0.18] pointer-events-none"
+          className="fixed inset-0 z-0 bg-center bg-no-repeat bg-[length:min(70vh,70vw)] opacity-[0.28] pointer-events-none"
           style={{ backgroundImage: "url(/logo-alamicos.png)" }}
           aria-hidden
         />
