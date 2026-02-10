@@ -74,7 +74,7 @@ export default function Hero() {
           transition={{ delay: 0.85, duration: 0.5 }}
           className="mt-2 text-amber-200/80 font-body text-sm"
         >
-          ALAMICOS R.F.C · Reggaeton Fútbol Club
+          ALAMICOS · Reggaeton Fútbol Club
         </motion.p>
 
         <motion.div

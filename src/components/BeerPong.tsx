@@ -140,6 +140,7 @@ export default function BeerPong() {
   const [savedFeedback, setSavedFeedback] = useState(false);
   const [stage, setStage] = useState<1 | 2>(1);
   const [mounted, setMounted] = useState(false);
+  const [showCanvas, setShowCanvas] = useState(false);
   const [celebratingHit, setCelebratingHit] = useState<number | null>(null);
   const celebratingHitAtRef = useRef<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -147,6 +148,7 @@ export default function BeerPong() {
   const [canvasDpr, setCanvasDpr] = useState(1);
   const logoImgRef = useRef<HTMLImageElement | null>(null);
   const [logoLoaded, setLogoLoaded] = useState(false);
+  const drawRef = useRef<(ctx: CanvasRenderingContext2D) => void>(() => {});
 
   const remainingCups = TOTAL_CUPS - cupsHit.length;
 
@@ -154,6 +156,18 @@ export default function BeerPong() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Montar el canvas un frame después de entrar en etapa 2 para evitar refs rotos tras hidratación
+  useEffect(() => {
+    if (stage !== 2 || !mounted) {
+      setShowCanvas(false);
+      return;
+    }
+    const t = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setShowCanvas(true));
+    });
+    return () => cancelAnimationFrame(t);
+  }, [stage, mounted]);
 
   // Al acertar todos los vasos: mostrar modal de victoria (no dejar la partida parada)
   useEffect(() => {
@@ -421,6 +435,26 @@ export default function BeerPong() {
       ctx.stroke();
     },
     [pullLine, celebratingHit, logoLoaded]
+  );
+
+  useEffect(() => {
+    drawRef.current = draw;
+  }, [draw]);
+
+  const setCanvasRef = useCallback(
+    (el: HTMLCanvasElement | null) => {
+      (canvasRef as React.MutableRefObject<HTMLCanvasElement | null>).current = el;
+      if (!el) return;
+      const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+      canvasScaleRef.current = dpr;
+      el.width = CANVAS_W * dpr;
+      el.height = CANVAS_H * dpr;
+      requestAnimationFrame(() => {
+        const ctx = el.getContext("2d");
+        if (ctx) drawRef.current(ctx);
+      });
+    },
+    []
   );
 
   const gameLoop = useCallback(() => {
@@ -851,27 +885,37 @@ export default function BeerPong() {
           </div>
 
           <>
-            {/* Cancha: canvas y modal solo sobre ella cuando gana/pierde */}
+            {/* Cancha: canvas o placeholder hasta que showCanvas; modal cuando gana/pierde */}
             <div
               ref={containerRef}
               key="game-board"
               className="relative mx-auto rounded-xl border-2 border-amber-500/40 overflow-hidden touch-none select-none"
               style={{ maxWidth: "100%" }}
             >
-              <canvas
-                ref={canvasRef}
-                width={CANVAS_W * canvasDpr}
-                height={CANVAS_H * canvasDpr}
-                className="block w-full h-auto"
-                style={{
-                  width: CANVAS_W,
-                  height: CANVAS_H,
-                  maxWidth: "100%",
-                  touchAction: "none",
-                  cursor: "crosshair",
-                }}
-                onPointerDown={handlePointerDown}
-              />
+              {!showCanvas ? (
+                <div
+                  className="block bg-[#0d1b24]"
+                  style={{
+                    width: CANVAS_W,
+                    height: CANVAS_H,
+                    maxWidth: "100%",
+                  }}
+                  aria-hidden
+                />
+              ) : (
+                <canvas
+                  ref={setCanvasRef}
+                  className="block w-full h-auto"
+                  style={{
+                    width: CANVAS_W,
+                    height: CANVAS_H,
+                    maxWidth: "100%",
+                    touchAction: "none",
+                    cursor: "crosshair",
+                  }}
+                  onPointerDown={handlePointerDown}
+                />
+              )}
               {(showWinModal || gameOver) && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/85 rounded-xl p-6">
                   <div className="text-center">

@@ -3,8 +3,6 @@
 import { motion } from "framer-motion";
 import { Music, MapPin } from "lucide-react";
 
-const SPOTIFY_TRACK_URL = "https://open.spotify.com/track/4AL4EamHEBKPpdcFRkYdXN";
-
 export default function Footer() {
   return (
     <footer className="relative py-20 px-4 border-t border-white/10 overflow-hidden stripes-football">
@@ -14,7 +12,7 @@ export default function Footer() {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="relative z-10 glass-card rounded-2xl p-8 mb-12 inline-block border-teal-500/30"
+          className="relative z-10 glass-card rounded-2xl p-8 mb-12 border-teal-500/30"
         >
           <div className="flex items-center justify-center gap-3 mb-4">
             <Music className="w-8 h-8 text-[#1DB954]" />
@@ -22,17 +20,18 @@ export default function Footer() {
               MUSIC & VIBE
             </span>
           </div>
-          <p className="text-white/70 font-body text-sm mb-4">
-            La canción de la despedida · Reproduce en el reproductor flotante
-          </p>
-          <a
-            href={SPOTIFY_TRACK_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-[#1DB954]/20 border border-[#1DB954]/50 text-white hover:bg-[#1DB954]/30 transition-colors font-body text-sm"
-          >
-            Abrir en Spotify
-          </a>
+          <iframe
+            data-testid="embed-iframe"
+            style={{ borderRadius: 12 }}
+            src="https://open.spotify.com/embed/playlist/09mqrtfDEDU0SWMfbsQVbr?utm_source=generator"
+            width="100%"
+            height="152"
+            frameBorder={0}
+            allowFullScreen
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="lazy"
+            title="Playlist Spotify"
+          />
         </motion.div>
 
         <motion.p

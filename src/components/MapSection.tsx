@@ -28,7 +28,7 @@ export default function MapSection() {
           className="text-center text-white/70 font-body text-sm mb-8 flex items-center justify-center gap-2"
         >
           <MapPin className="w-4 h-4 text-cyan-400" />
-          Viña del Mar · Cerca de Maitencillo
+          Cerca de maitencillo - V Región
         </motion.p>
 
         <motion.div
