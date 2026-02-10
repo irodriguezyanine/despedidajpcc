@@ -95,11 +95,6 @@ export default function BeerPong() {
   const dragEndRef = useRef<{ x: number; y: number } | null>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
 
-  cupsHitRef.current = cupsHit;
-  dragStartRef.current = dragStart;
-  currentPlayerIdRef.current = currentPlayerId;
-  participantsRef.current = participants;
-
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
@@ -112,6 +107,11 @@ export default function BeerPong() {
   const [dragEnd, setDragEnd] = useState<{ x: number; y: number } | null>(null);
   const [lastResult, setLastResult] = useState<"hit" | "miss" | null>(null);
   const [power, setPower] = useState(0);
+
+  cupsHitRef.current = cupsHit;
+  dragStartRef.current = dragStart;
+  currentPlayerIdRef.current = currentPlayerId;
+  participantsRef.current = participants;
 
   const remainingCups = TOTAL_CUPS - cupsHit.length;
 
