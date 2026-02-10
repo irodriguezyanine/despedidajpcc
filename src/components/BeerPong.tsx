@@ -919,7 +919,7 @@ export default function BeerPong() {
               Jugar
             </motion.button>
             <p className="text-white/60 font-body text-sm mt-6 text-center max-w-sm mx-auto">
-              Arrastra desde la bola hacia atrás y suelta para lanzar. 2 vidas, 6 vasos.
+              Juega, no seas cagon !
             </p>
           </motion.div>
         )}

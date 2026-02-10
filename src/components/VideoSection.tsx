@@ -3,7 +3,6 @@
 import { motion } from "framer-motion";
 
 const YOUTUBE_EMBED = "https://www.youtube.com/embed/3silveuYpko";
-const YOUTUBE_WATCH = "https://www.youtube.com/watch?v=3silveuYpko";
 
 export default function VideoSection() {
   return (
@@ -45,17 +44,6 @@ export default function VideoSection() {
                 />
               </div>
             </div>
-            <p className="mt-3 text-center text-white/60 text-sm font-body">
-              Si el vídeo no se muestra (bloqueado en algunos sitios),{" "}
-              <a
-                href={YOUTUBE_WATCH}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-red-400 hover:text-red-300 underline"
-              >
-                ver en YouTube
-              </a>
-            </p>
             <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-red-500/10 to-amber-500/10 blur-xl -z-10" />
           </div>
 
