@@ -50,6 +50,22 @@ export default function SpotifySection() {
             title="Spotify - Canción de la despedida JPCC"
           />
         </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mt-12 max-w-[800px] mx-auto rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl bg-black/40"
+        >
+          <iframe
+            src="https://html5.gamedistribution.com/527ae66f4e664fdc8847e7ce952165dc/?gd_sdk_referrer_url=https://www.example.com/games/beerpong"
+            width="800"
+            height="600"
+            className="w-full h-[min(600px,75vw)] max-h-[600px]"
+            style={{ border: 0 }}
+            scrolling="no"
+            title="Juego"
+          />
+        </motion.div>
       </div>
     </section>
   );

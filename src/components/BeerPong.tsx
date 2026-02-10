@@ -53,6 +53,13 @@ function getCupPositions(): { x: number; y: number }[] {
 
 const CUP_POSITIONS = getCupPositions();
 
+// Si la bola va con más del 90% de la velocidad máxima, pasa por encima del vaso (no punto)
+const OVERSPEED_THRESHOLD = MAX_SPEED * 0.9;
+// Zona de vasos para rebote entre vasos (y)
+const CUP_ZONE_TOP = 50;
+const CUP_ZONE_BOTTOM = 175;
+const GAP_RADIUS = CUP_R + 22; // distancia "entre" vasos para rebote aleatorio
+
 export interface Participant {
   id: string;
   name: string;
@@ -104,6 +111,7 @@ export default function BeerPong() {
   const currentPlayerIdRef = useRef<string | null>(null);
   const participantsRef = useRef<Participant[]>([]);
   const ballSelectedRef = useRef(false);
+  const bouncedBetweenCupsRef = useRef(false);
 
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
@@ -121,6 +129,7 @@ export default function BeerPong() {
   } | null>(null);
   const [lastResult, setLastResult] = useState<"hit" | "miss" | null>(null);
   const [showWinModal, setShowWinModal] = useState(false);
+  const [savedFeedback, setSavedFeedback] = useState(false);
 
   const remainingCups = TOTAL_CUPS - cupsHit.length;
 
@@ -277,6 +286,7 @@ export default function BeerPong() {
 
     // Cuando la bola se detiene: reiniciar a posición inicial para el siguiente lanzamiento
     if (speed < 0.2) {
+      bouncedBetweenCupsRef.current = false;
       g.vx = 0;
       g.vy = 0;
       g.x = BALL_START_X;
@@ -291,11 +301,17 @@ export default function BeerPong() {
     const curCups = cupsHitRef.current;
     const curPlayer = currentPlayerIdRef.current;
 
+    // Gol en vaso: solo cuenta si la bola no va con exceso de fuerza (>90% → pasa por encima, no punto)
     for (let i = 0; i < TOTAL_CUPS; i++) {
       if (curCups.includes(i)) continue;
       const c = CUP_POSITIONS[i];
       const dist = Math.hypot(g.x - c.x, g.y - c.y);
       if (dist < CUP_R) {
+        if (speed >= OVERSPEED_THRESHOLD) {
+          // Exceso de fuerza: la bola pasa por arriba del vaso, no es punto
+          break;
+        }
+        bouncedBetweenCupsRef.current = false;
         cupsHitRef.current = [...curCups, i].sort((a, b) => a - b);
         setCupsHit(cupsHitRef.current);
         setParticipants((prev) =>
@@ -318,12 +334,33 @@ export default function BeerPong() {
       }
     }
 
+    // Bola entre dos vasos (no dentro de ninguno): rebote aleatorio como en la vida real
+    const inCupZone = g.y >= CUP_ZONE_TOP && g.y <= CUP_ZONE_BOTTOM;
+    if (inCupZone && speed < 6 && !bouncedBetweenCupsRef.current) {
+      let minDistToCup = Infinity;
+      for (let i = 0; i < TOTAL_CUPS; i++) {
+        if (curCups.includes(i)) continue;
+        const d = Math.hypot(g.x - CUP_POSITIONS[i].x, g.y - CUP_POSITIONS[i].y);
+        if (d < CUP_R) {
+          minDistToCup = 0;
+          break;
+        }
+        if (d < minDistToCup) minDistToCup = d;
+      }
+      if (minDistToCup > CUP_R && minDistToCup < GAP_RADIUS) {
+        bouncedBetweenCupsRef.current = true;
+        g.vx = (Math.random() - 0.5) * 10;
+        g.vy = (Math.random() - 0.3) * 8;
+      }
+    }
+
     if (
       g.x < TABLE_LEFT - BALL_R ||
       g.x > TABLE_RIGHT + BALL_R ||
       g.y < TABLE_TOP - BALL_R ||
       g.y > TABLE_BOTTOM + BALL_R
     ) {
+      bouncedBetweenCupsRef.current = false;
       setLastResult("miss");
       setLives((prev) => {
         const next = prev - 1;
@@ -434,6 +471,7 @@ export default function BeerPong() {
       g.vx = vx;
       g.vy = vy;
 
+      bouncedBetweenCupsRef.current = false;
       setLastResult(null);
       setIsFlying(true);
     };
@@ -462,10 +500,9 @@ export default function BeerPong() {
     g.vy = 0;
   }, []);
 
-  // Doblar la apuesta: nueva ronda (6 vasos, 3 vidas), se mantienen jugadores y puntajes
+  // Doblar la apuesta: nueva ronda (6 vasos), se mantienen vidas, jugadores y puntajes
   const startNewRound = useCallback(() => {
     setShowWinModal(false);
-    setLives(3);
     setCupsHit([]);
     cupsHitRef.current = [];
     setLastResult(null);
@@ -654,14 +691,31 @@ export default function BeerPong() {
               <p className="font-body text-white/90 mb-6">
                 ¿Quieres doblar la apuesta?
               </p>
-              <motion.button
-                onClick={startNewRound}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.98 }}
-                className="px-8 py-4 rounded-xl font-display text-lg text-white bg-amber-500 border border-amber-400/50 hover:bg-amber-600"
-              >
-                Jugar de nuevo
-              </motion.button>
+              <div className="flex flex-wrap gap-3 justify-center">
+                <motion.button
+                  onClick={startNewRound}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="px-6 py-3 rounded-xl font-display text-base text-white bg-amber-500 border border-amber-400/50 hover:bg-amber-600"
+                >
+                  Jugar de nuevo
+                </motion.button>
+                <motion.button
+                  onClick={() => {
+                    saveLeaderboard(participants);
+                    setSavedFeedback(true);
+                    setTimeout(() => setSavedFeedback(false), 2000);
+                  }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="px-6 py-3 rounded-xl font-display text-base text-white bg-white/20 border border-white/30 hover:bg-white/30"
+                >
+                  Guardar resultado
+                </motion.button>
+              </div>
+              {savedFeedback && (
+                <p className="text-emerald-400 text-sm mt-3">Resultado guardado</p>
+              )}
             </div>
           ) : gameOver ? (
             <div className="rounded-xl bg-black/50 border-2 border-red-500/50 p-8 text-center">
