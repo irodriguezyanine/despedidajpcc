@@ -38,7 +38,12 @@ const item = {
 export default function Squad() {
   return (
     <section id="crew" className="relative py-24 px-4 overflow-hidden stripes-football">
-      <div className="absolute inset-0 bg-gradient-to-b from-pitch-green/95 via-stadium-green/90 to-sky-950/95" />
+      {/* Fondo: imagen del equipo (caricatura ALAMICOS), como el pasto detrás de la cuenta regresiva */}
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: "url(/equipo-alamicos.png)" }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-pitch-green/90 via-stadium-green/85 to-sky-950/92" />
       <div className="absolute inset-0 bg-gradient-to-r from-real-red/5 via-transparent to-cyan-500/5" />
       <div className="relative z-10 max-w-6xl mx-auto">
         <motion.h2
@@ -55,7 +60,7 @@ export default function Squad() {
           viewport={{ once: true }}
           className="text-center text-white/60 font-body text-sm mb-10"
         >
-          Reggaeton Fútbol Club · La plantilla
+          LA NOMINA
         </motion.p>
 
         <motion.div
