@@ -16,11 +16,13 @@ const CANVAS_W = 340;
 const CANVAS_H = 440;
 const TABLE_MARGIN = 20;
 const BALL_R = 10;
-const CUP_R = 18;        // radio efectivo para encestar (más chico = más difícil)
-const FRICTION = 0.978; // más fricción = la bola llega con menos fuerza a los vasos
-const PULL_SCALE = 0.10; // 70–90% del arrastre llega al área de vasos; 100% se pasa
-const MAX_SPEED = 26;    // máxima potencia: bola se pasa por encima de la cancha (no punto)
-const MIN_PULL = 22;     // mínimo: no debe pasar la mitad de cancha
+const CUP_R = 17;        // radio para que cuente: solo un poco; punto solo si la bola se DETIENE dentro
+const FRICTION = 0.976;  // más fricción = más difícil controlar en móvil
+const PULL_SCALE = 0.10;
+const PULL_SCALE_MOBILE = 0.135; // en celular: más sensible, mismo arrastre = más velocidad (más difícil)
+const MAX_SPEED = 26;
+const MIN_PULL = 22;
+const STOP_SPEED = 0.35; // por debajo de esto la bola "se detiene"; solo entonces cuenta enceste
 
 // Mesa: zona jugable (nosotros abajo, vasos arriba)
 const TABLE_LEFT = TABLE_MARGIN;
@@ -54,12 +56,14 @@ function getCupPositions(): { x: number; y: number }[] {
 
 const CUP_POSITIONS = getCupPositions();
 
-// Solo tiros suaves cuentan como punto; si va muy fuerte no encesta (más difícil: 0.40)
-const OVERSPEED_THRESHOLD = MAX_SPEED * 0.40;
+// Barra de potencia (solo visual): verde = tiro suave recomendado
+const SOFT_THRESHOLD_DISPLAY = MAX_SPEED * 0.38;
 // Zona de vasos para rebote entre vasos (y)
-const CUP_ZONE_TOP = 50;
-const CUP_ZONE_BOTTOM = 175;
-const GAP_RADIUS = CUP_R + 22; // distancia "entre" vasos para rebote aleatorio
+const CUP_ZONE_TOP = 45;
+const CUP_ZONE_BOTTOM = 180;
+const GAP_RADIUS = CUP_R + 20;   // rebote entre vasos: más fácil que dispare
+const CUP_BOUNCE_SPEED_MAX = 9;  // hasta esta velocidad puede rebotar entre vasos (más rebotes)
+const CUP_BOUNCE_STRENGTH = 1.25; // multiplicador del rebote (más desvío en móvil)
 
 export interface Participant {
   id: string;
@@ -444,7 +448,7 @@ export default function BeerPong() {
         const dy = pullLine.y2 - pullLine.y1;
         const len = Math.hypot(dx, dy);
         const speed = Math.min(len * PULL_SCALE, MAX_SPEED);
-        const isInRange = speed < OVERSPEED_THRESHOLD;
+        const isInRange = speed < SOFT_THRESHOLD_DISPLAY;
         ctx.strokeStyle = isInRange ? "rgba(255, 215, 0, 0.95)" : "rgba(255, 100, 100, 0.95)";
         ctx.lineWidth = 3;
         ctx.setLineDash([6, 4]);
@@ -472,7 +476,7 @@ export default function BeerPong() {
         const barW = CANVAS_W - 40;
         const barX = 20;
         const barH = 10;
-        const thresholdRatio = OVERSPEED_THRESHOLD / MAX_SPEED;
+        const thresholdRatio = SOFT_THRESHOLD_DISPLAY / MAX_SPEED;
         ctx.fillStyle = "rgba(34, 197, 94, 0.6)";
         ctx.fillRect(barX, barY, barW * thresholdRatio, barH);
         ctx.fillStyle = "rgba(239, 68, 68, 0.6)";
@@ -538,9 +542,35 @@ export default function BeerPong() {
 
     const speed = Math.hypot(g.vx, g.vy);
 
-    // Cuando la bola se detiene: reiniciar a posición inicial para el siguiente lanzamiento
-    if (speed < 0.2) {
+    const curCups = cupsHitRef.current;
+    const curPlayer = currentPlayerIdRef.current;
+
+    // Solo cuenta punto cuando la bola SE DETIENE dentro del vaso (no al pasar)
+    if (speed < STOP_SPEED) {
       bouncedBetweenCupsRef.current = false;
+      let scored = false;
+      for (let i = 0; i < TOTAL_CUPS; i++) {
+        if (curCups.includes(i)) continue;
+        const c = CUP_POSITIONS[i];
+        const dist = Math.hypot(g.x - c.x, g.y - c.y);
+        if (dist < CUP_R) {
+          scored = true;
+          celebratingHitAtRef.current = now;
+          setCelebratingHit(i);
+          haptic("medium");
+          cupsHitRef.current = [...curCups, i].sort((a, b) => a - b);
+          setCupsHit(cupsHitRef.current);
+          setParticipants((prev) =>
+            curPlayer
+              ? prev.map((p) =>
+                  p.id === curPlayer ? { ...p, score: p.score + 1 } : p
+                )
+              : prev
+          );
+          setLastResult("hit");
+          break;
+        }
+      }
       g.vx = 0;
       g.vy = 0;
       g.x = BALL_START_X;
@@ -552,47 +582,9 @@ export default function BeerPong() {
       return;
     }
 
-    const curCups = cupsHitRef.current;
-    const curPlayer = currentPlayerIdRef.current;
-
-    // Gol en vaso: solo cuenta si la bola no va con exceso de fuerza (>90% → pasa por encima, no punto)
-    for (let i = 0; i < TOTAL_CUPS; i++) {
-      if (curCups.includes(i)) continue;
-      const c = CUP_POSITIONS[i];
-      const dist = Math.hypot(g.x - c.x, g.y - c.y);
-      if (dist < CUP_R) {
-        if (speed >= OVERSPEED_THRESHOLD) {
-          break;
-        }
-        bouncedBetweenCupsRef.current = false;
-        celebratingHitAtRef.current = now;
-        setCelebratingHit(i);
-        haptic("medium");
-        cupsHitRef.current = [...curCups, i].sort((a, b) => a - b);
-        setCupsHit(cupsHitRef.current);
-        setParticipants((prev) =>
-          curPlayer
-            ? prev.map((p) =>
-                p.id === curPlayer ? { ...p, score: p.score + 1 } : p
-              )
-            : prev
-        );
-        setLastResult("hit");
-        g.x = BALL_START_X;
-        g.y = BALL_START_Y;
-        g.vx = 0;
-        g.vy = 0;
-        setIsFlying(false);
-        if (g.rafId != null) cancelAnimationFrame(g.rafId);
-        g.rafId = null;
-        draw(ctx);
-        return;
-      }
-    }
-
-    // Bola entre dos vasos (no dentro de ninguno): rebote aleatorio como en la vida real
+    // Bola entre vasos: rebote aleatorio (más frecuente y fuerte = más difícil en celular)
     const inCupZone = g.y >= CUP_ZONE_TOP && g.y <= CUP_ZONE_BOTTOM;
-    if (inCupZone && speed < 6 && !bouncedBetweenCupsRef.current) {
+    if (inCupZone && speed < CUP_BOUNCE_SPEED_MAX && !bouncedBetweenCupsRef.current) {
       let minDistToCup = Infinity;
       for (let i = 0; i < TOTAL_CUPS; i++) {
         if (curCups.includes(i)) continue;
@@ -605,8 +597,9 @@ export default function BeerPong() {
       }
       if (minDistToCup > CUP_R && minDistToCup < GAP_RADIUS) {
         bouncedBetweenCupsRef.current = true;
-        g.vx = (Math.random() - 0.5) * 10;
-        g.vy = (Math.random() - 0.3) * 8;
+        const mult = CUP_BOUNCE_STRENGTH;
+        g.vx = (Math.random() - 0.5) * 10 * mult;
+        g.vy = (Math.random() - 0.3) * 8 * mult;
       }
     }
 
@@ -723,7 +716,8 @@ export default function BeerPong() {
       if (len < MIN_PULL) return;
 
       haptic("light");
-      const speed = Math.min(len * PULL_SCALE, MAX_SPEED);
+      const pullScale = e.pointerType === "touch" ? PULL_SCALE_MOBILE : PULL_SCALE;
+      const speed = Math.min(len * pullScale, MAX_SPEED);
       const vx = (dx / len) * speed;
       const vy = (dy / len) * speed;
 
