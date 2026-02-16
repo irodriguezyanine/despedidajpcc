@@ -26,7 +26,7 @@ export async function GET() {
     }
 
     const participants: Participant[] = (data ?? []).map((row) => ({
-      id: row.client_id ?? row.id,
+      id: row.client_id,
       name: row.name,
       score: row.score,
     }));
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
         .order("score", { ascending: false });
       return NextResponse.json({
         data: (data ?? []).map((r) => ({
-          id: r.client_id ?? r.id,
+          id: r.client_id,
           name: r.name,
           score: r.score,
         })),
@@ -103,7 +103,7 @@ export async function POST(request: Request) {
       .order("score", { ascending: false });
 
     const participants: Participant[] = (updated ?? []).map((r) => ({
-      id: r.client_id ?? r.id,
+      id: r.client_id,
       name: r.name,
       score: r.score,
     }));
