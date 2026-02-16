@@ -71,7 +71,8 @@ export async function POST(request: Request) {
 
     const supabase = createSupabaseClient();
 
-    for (const [, { name, score }] of bestByName) {
+    const entries = Array.from(bestByName.values());
+    for (const { name, score } of entries) {
       const nameLower = name.toLowerCase();
       const { data: existing } = await supabase
         .from("beerpong_leaderboard")
