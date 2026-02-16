@@ -23,6 +23,17 @@ npm run dev
 
 Abre [http://localhost:3000](http://localhost:3000).
 
+### Tabla de puntajes del Beer Pong (compartida entre dispositivos)
+
+Para que los puntajes se guarden entre todos los jugadores (no solo en el dispositivo donde se juega):
+
+1. Crea un proyecto en [Supabase](https://supabase.com) (gratis).
+2. En el SQL Editor de Supabase, ejecuta el contenido de `supabase-setup.sql`.
+3. Copia `.env.example` a `.env.local` y añade tu URL y clave de Supabase (desde Project Settings > API).
+4. Reinicia el servidor de desarrollo.
+
+Sin Supabase configurado, los puntajes se guardan solo en el navegador (localStorage).
+
 ## Subir a GitHub
 
 Si aún no tienes el remoto configurado:

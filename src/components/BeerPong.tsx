@@ -76,7 +76,7 @@ function generateId() {
   return `p-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function loadLeaderboard(): { data: Participant[]; hadKey: boolean } {
+function loadLeaderboardLocal(): { data: Participant[]; hadKey: boolean } {
   if (typeof window === "undefined") return { data: [], hadKey: false };
   try {
     const raw = localStorage.getItem(LEADERBOARD_KEY);
@@ -90,11 +90,37 @@ function loadLeaderboard(): { data: Participant[]; hadKey: boolean } {
   }
 }
 
-function saveLeaderboard(data: Participant[]) {
+function saveLeaderboardLocal(data: Participant[]) {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(data));
   } catch {}
+}
+
+const API_LEADERBOARD = "/api/beerpong/leaderboard";
+
+async function fetchLeaderboard(): Promise<{ data: Participant[]; useLocalStorage?: boolean }> {
+  try {
+    const res = await fetch(API_LEADERBOARD);
+    const json = await res.json();
+    return { data: Array.isArray(json?.data) ? json.data : [], useLocalStorage: json?.useLocalStorage };
+  } catch {
+    return { data: [], useLocalStorage: true };
+  }
+}
+
+async function saveLeaderboardToServer(data: Participant[]): Promise<Participant[] | null> {
+  try {
+    const res = await fetch(API_LEADERBOARD, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data }),
+    });
+    const json = await res.json();
+    return Array.isArray(json?.data) ? json.data : null;
+  } catch {
+    return null;
+  }
 }
 
 // Haptic feedback (mejora 8): vibración corta en móvil
@@ -158,6 +184,7 @@ export default function BeerPong() {
   const logoImgRef = useRef<HTMLImageElement | null>(null);
   const [logoLoaded, setLogoLoaded] = useState(false);
   const drawRef = useRef<(ctx: CanvasRenderingContext2D) => void>(() => {});
+  const [useLocalStorageOnly, setUseLocalStorageOnly] = useState(true);
 
   const remainingCups = TOTAL_CUPS - cupsHit.length;
 
@@ -192,27 +219,40 @@ export default function BeerPong() {
     ballSelectedRef.current = ballSelected;
   }, [cupsHit, currentPlayerId, participants, ballSelected]);
 
-  // Leaderboard: cargar desde localStorage. Solo sembrar Rodri si la clave NUNCA existió (primera visita).
+  // Leaderboard: cargar desde API (compartida entre dispositivos) o localStorage como fallback
   const hasLoadedLeaderboardRef = useRef(false);
   useEffect(() => {
     if (typeof window === "undefined" || hasLoadedLeaderboardRef.current) return;
     hasLoadedLeaderboardRef.current = true;
-    const { data: saved, hadKey } = loadLeaderboard();
-    if (saved.length > 0) {
-      setParticipants(saved);
-      setCurrentPlayerId((prev) => prev || saved[0].id);
-      participantsRef.current = saved;
-      return;
-    }
-    if (hadKey) {
-      setParticipants([]);
-      return;
-    }
-    const rodriOnly = [{ id: "rodri-33", name: "Rodri", score: 33 }];
-    saveLeaderboard(rodriOnly);
-    setParticipants(rodriOnly);
-    setCurrentPlayerId("rodri-33");
-    participantsRef.current = rodriOnly;
+
+    (async () => {
+      const { data: apiData, useLocalStorage } = await fetchLeaderboard();
+      setUseLocalStorageOnly(!!useLocalStorage);
+
+      if (!useLocalStorage && apiData.length > 0) {
+        setParticipants(apiData);
+        setCurrentPlayerId((prev) => prev || apiData[0].id);
+        participantsRef.current = apiData;
+        return;
+      }
+
+      const { data: saved, hadKey } = loadLeaderboardLocal();
+      if (saved.length > 0) {
+        setParticipants(saved);
+        setCurrentPlayerId((prev) => prev || saved[0].id);
+        participantsRef.current = saved;
+        return;
+      }
+      if (hadKey) {
+        setParticipants([]);
+        return;
+      }
+      const rodriOnly = [{ id: "rodri-33", name: "Rodri", score: 33 }];
+      saveLeaderboardLocal(rodriOnly);
+      setParticipants(rodriOnly);
+      setCurrentPlayerId("rodri-33");
+      participantsRef.current = rodriOnly;
+    })();
   }, []);
 
   // Cargar logo Alamicos para dibujarlo dentro del tablero verde
@@ -229,14 +269,24 @@ export default function BeerPong() {
     };
   }, []);
 
-  useEffect(() => {
-    if (participants.length > 0) saveLeaderboard(participants);
-  }, [participants]);
+  // Guardar puntajes: API (compartida) o localStorage
+  const persistLeaderboard = useCallback((data: Participant[]) => {
+    if (data.length === 0) return;
+    if (useLocalStorageOnly) {
+      saveLeaderboardLocal(data);
+    } else {
+      saveLeaderboardToServer(data);
+    }
+  }, [useLocalStorageOnly]);
 
-  // Al perder (game over), guardar puntaje y posición en la tabla
   useEffect(() => {
-    if (gameOver && participants.length > 0) saveLeaderboard(participants);
-  }, [gameOver, participants]);
+    if (participants.length > 0) persistLeaderboard(participants);
+  }, [participants, persistLeaderboard]);
+
+  // Al perder (game over), guardar puntaje
+  useEffect(() => {
+    if (gameOver && participants.length > 0) persistLeaderboard(participants);
+  }, [gameOver, participants, persistLeaderboard]);
 
   const addParticipant = useCallback(() => {
     const name = newName.trim();
@@ -251,11 +301,7 @@ export default function BeerPong() {
     }
     const id = generateId();
     const newEntry = { id, name, score: 0 };
-    setParticipants((prev) => {
-      const next = [...prev, newEntry];
-      saveLeaderboard(next);
-      return next;
-    });
+    setParticipants((prev) => [...prev, newEntry]);
     setCurrentPlayerId(id);
     setNewName("");
   }, [newName, participants]);
@@ -272,11 +318,7 @@ export default function BeerPong() {
     } else {
       const id = generateId();
       const newEntry = { id, name, score: 0 };
-      setParticipants((prev) => {
-        const next = [...prev, newEntry];
-        saveLeaderboard(next);
-        return next;
-      });
+      setParticipants((prev) => [...prev, newEntry]);
       setCurrentPlayerId(id);
     }
     setNewName("");
@@ -593,7 +635,6 @@ export default function BeerPong() {
             : participantsRef.current;
           participantsRef.current = newParticipants;
           setParticipants(newParticipants);
-          saveLeaderboard(newParticipants);
           setLastResult("hit");
           setLives((prev) => Math.min(prev + 1, 6)); // +1 vida al hacer punto (máx 6)
           g.vx = 0;
@@ -800,11 +841,7 @@ export default function BeerPong() {
         name: currentPlayer.name,
         score: 0,
       };
-      setParticipants((prev) => {
-        const next = [...prev, newParticipant];
-        saveLeaderboard(next);
-        return next;
-      });
+      setParticipants((prev) => [...prev, newParticipant]);
       setCurrentPlayerId(newParticipant.id);
     }
     setGameOver(false);
