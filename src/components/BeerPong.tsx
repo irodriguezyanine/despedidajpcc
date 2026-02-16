@@ -247,11 +247,7 @@ export default function BeerPong() {
         setParticipants([]);
         return;
       }
-      const rodriOnly = [{ id: "rodri-33", name: "Rodri", score: 33 }];
-      saveLeaderboardLocal(rodriOnly);
-      setParticipants(rodriOnly);
-      setCurrentPlayerId("rodri-33");
-      participantsRef.current = rodriOnly;
+      setParticipants([]);
     })();
   }, []);
 

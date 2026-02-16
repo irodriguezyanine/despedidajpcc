@@ -23,16 +23,18 @@ npm run dev
 
 Abre [http://localhost:3000](http://localhost:3000).
 
-### Tabla de puntajes del Beer Pong (compartida entre dispositivos)
+### Supabase (Beer Pong + Encuesta)
 
-Para que los puntajes se guarden entre todos los jugadores (no solo en el dispositivo donde se juega):
+Para que los puntajes del Beer Pong y los votos de la encuesta se guarden entre todos los dispositivos:
 
 1. Crea un proyecto en [Supabase](https://supabase.com) (gratis).
-2. En el SQL Editor de Supabase, ejecuta el contenido de `supabase-setup.sql`.
+2. En el SQL Editor de Supabase, ejecuta el contenido de `supabase-setup.sql` (crea las tablas `beerpong_leaderboard` y `encuesta_votos`).
 3. Copia `.env.example` a `.env.local` y añade tu URL y clave de Supabase (desde Project Settings > API).
 4. Reinicia el servidor de desarrollo.
 
-Sin Supabase configurado, los puntajes se guardan solo en el navegador (localStorage).
+Para borrar el puntaje de Rodri de la tabla beerpong, ejecuta `supabase-borrar-rodri.sql` en el SQL Editor.
+
+Sin Supabase configurado, los datos se guardan solo en el navegador (localStorage).
 
 ## Subir a GitHub
 

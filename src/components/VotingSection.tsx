@@ -7,6 +7,7 @@ import { SQUAD_MEMBERS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "alamicos_encuesta_votos";
+const API_VOTES = "/api/encuesta/votes";
 
 interface VoteRecord {
   email: string;
@@ -20,7 +21,7 @@ interface StoredData {
   votes: VoteRecord[];
 }
 
-function loadVotes(): VoteRecord[] {
+function loadVotesLocal(): VoteRecord[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -32,11 +33,40 @@ function loadVotes(): VoteRecord[] {
   }
 }
 
-function saveVotes(votes: VoteRecord[]) {
+function saveVotesLocal(votes: VoteRecord[]) {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ votes }));
   } catch {}
+}
+
+async function fetchVotes(): Promise<{ data: VoteRecord[]; useLocalStorage?: boolean }> {
+  try {
+    const res = await fetch(API_VOTES);
+    const json = await res.json();
+    return { data: Array.isArray(json?.data) ? json.data : [], useLocalStorage: json?.useLocalStorage };
+  } catch {
+    return { data: [], useLocalStorage: true };
+  }
+}
+
+async function saveVoteToServer(vote: VoteRecord): Promise<VoteRecord[] | null> {
+  try {
+    const res = await fetch(API_VOTES, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: vote.email,
+        name: vote.name,
+        mvp: vote.mvp,
+        masPerra: vote.masPerra,
+      }),
+    });
+    const json = await res.json();
+    return Array.isArray(json?.data) ? json.data : null;
+  } catch {
+    return null;
+  }
 }
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -64,8 +94,16 @@ export default function VotingSection() {
   const [votes, setVotes] = useState<VoteRecord[]>([]);
   const [selectedBar, setSelectedBar] = useState<{ category: "mvp" | "masPerra"; option: string } | null>(null);
 
-  const refreshVotes = useCallback(() => {
-    setVotes(loadVotes());
+  const [useLocalStorageOnly, setUseLocalStorageOnly] = useState(true);
+
+  const refreshVotes = useCallback(async () => {
+    const { data: apiData, useLocalStorage } = await fetchVotes();
+    setUseLocalStorageOnly(!!useLocalStorage);
+    if (!useLocalStorage && apiData) {
+      setVotes(apiData);
+      return;
+    }
+    setVotes(loadVotesLocal());
   }, []);
 
   useEffect(() => {
@@ -110,7 +148,7 @@ export default function VotingSection() {
     setStage(3);
   };
 
-  const confirmMasPerra = () => {
+  const confirmMasPerra = async () => {
     if (!masPerraVote) {
       setError("Selecciona una opción");
       return;
@@ -125,14 +163,25 @@ export default function VotingSection() {
       timestamp: Date.now(),
     };
 
-    // Reemplazar voto anterior si el correo ya votó; si no, agregar nuevo
-    const trimmedEmail = email.trim().toLowerCase();
-    const existingVotes = loadVotes();
-    const updated = existingVotes
-      .filter((v) => v.email !== trimmedEmail)
-      .concat(newVote);
-    saveVotes(updated);
-    setVotes(updated);
+    if (useLocalStorageOnly) {
+      const trimmedEmail = email.trim().toLowerCase();
+      const existingVotes = loadVotesLocal();
+      const updated = existingVotes
+        .filter((v) => v.email !== trimmedEmail)
+        .concat(newVote);
+      saveVotesLocal(updated);
+      setVotes(updated);
+    } else {
+      const updated = await saveVoteToServer(newVote);
+      if (updated) setVotes(updated);
+      else {
+        const fallback = loadVotesLocal()
+          .filter((v) => v.email !== newVote.email)
+          .concat(newVote);
+        saveVotesLocal(fallback);
+        setVotes(fallback);
+      }
+    }
     setStage(4);
   };
 
