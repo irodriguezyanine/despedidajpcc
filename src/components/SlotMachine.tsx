@@ -8,7 +8,7 @@ const ROWS = 7; // Más de 6 filas
 const SPIN_DURATION_MS = 2800;
 
 const SYMBOLS = [
-  { id: "fiesta", label: "🎉 Fiesta", emoji: "🎉" },
+  { id: "toma1", label: "🍻 Toma 1", emoji: "🍻" },
   { id: "shot", label: "🍾 Shot", emoji: "🍾" },
   { id: "piquito", label: "😘 Piquito", emoji: "😘" },
   { id: "alseco", label: "🥃 Al seco", emoji: "🥃" },
@@ -76,7 +76,7 @@ export default function SlotMachine() {
           viewport={{ once: true }}
           className="font-display text-2xl sm:text-3xl md:text-4xl text-center mb-2 text-white"
         >
-          🎰 SLOT <span className="text-pink-400">ALAMICOS</span> 🎰
+          🎰 CASINO <span className="text-pink-400">ALAMOS</span> 🎰
         </motion.h2>
         <motion.p
           initial={{ opacity: 0 }}
@@ -98,7 +98,7 @@ export default function SlotMachine() {
             {/* Marco superior estilo casino */}
             <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-3/4 h-3 bg-gradient-to-b from-amber-500 to-amber-700 rounded-b-lg shadow-lg" />
             <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 px-6 py-1 bg-amber-500 rounded-full text-slate-900 font-display text-sm font-bold">
-              ALAMICOS
+              ALAMOS
             </div>
 
             {/* Ventana de símbolos - 7 filas visibles */}
@@ -171,7 +171,7 @@ export default function SlotMachine() {
           </AnimatePresence>
 
           <p className="text-center text-white/40 text-xs font-body mt-4">
-            Símbolos: Fiesta · Shot · Piquito · Al seco · Regala 2 · Regala 4 · Llama a tu ex · Tapita · Regala al seco
+            Símbolos: Toma 1 · Shot · Piquito · Al seco · Regala 2 · Regala 4 · Llama a tu ex · Tapita · Regala al seco
           </p>
         </motion.div>
       </div>
