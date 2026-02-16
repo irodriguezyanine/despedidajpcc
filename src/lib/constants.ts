@@ -1,0 +1,17 @@
+export const SQUAD_MEMBERS = [
+  { id: "jose", name: "Jose Antonio Saenz", apodo: "Jose" },
+  { id: "rodri", name: "Ignacio Rodríguez", apodo: "Rodri" },
+  { id: "maxi", name: "Maximiliano Gomez", apodo: "Maxi" },
+  { id: "feño", name: "Benjamín Fernandez", apodo: "Feño" },
+  { id: "fiera", name: "Felipe Barrios", apodo: "Fiera" },
+  { id: "rucio", name: "Fernando Biskupovic", apodo: "Rucio" },
+  { id: "nachito", name: "Ignacio Cuevas", apodo: "Nachito" },
+  { id: "juanjo", name: "Juan José Aguero", apodo: "Juanjo" },
+  { id: "rorro", name: "Rodrigo Funes", apodo: "Rorro" },
+  { id: "guille", name: "Guillermo Pizarro", apodo: "Guille" },
+  { id: "nacho", name: "Ignacio Elguera", apodo: "Nacho" },
+  { id: "juampi", name: "Juan Pablo Rojas", apodo: "Juampi" },
+  { id: "jpcc", name: "Juan Pablo Casas Cordero", apodo: "JPCC" },
+  { id: "nico", name: "Nicolas Ruiseñor", apodo: "Nico" },
+  { id: "memo", name: "Guillermo Prussing", apodo: "Memo" },
+];
