@@ -12,28 +12,28 @@ import { motion, AnimatePresence } from "framer-motion";
 const API_LEADERBOARD = "/api/penales/leaderboard";
 
 const CANVAS_W = 360;
-const CANVAS_H = 520;
-const BALL_R = 10;
-const PULL_SCALE = 0.12;
-const PULL_SCALE_MOBILE = 0.125;
-const MAX_SPEED = 32;
-const MIN_PULL = 18;
-const GRAVITY = 0.35;
-const FRICTION_AIR = 0.998;
+const CANVAS_H = 500;
+const BALL_R = 9;
+const PULL_SCALE = 0.14;
+const PULL_SCALE_MOBILE = 0.15;
+const MAX_SPEED = 36;
+const MIN_PULL = 15;
+const GRAVITY = 0.25;
+const FRICTION_AIR = 0.999;
 
-const GOAL_TOP = 25;
-const GOAL_HEIGHT = 110;
-const GOAL_WIDTH = 240;
+const GOAL_TOP = 20;
+const GOAL_HEIGHT = 100;
+const GOAL_WIDTH = 260;
 const GOAL_LEFT = (CANVAS_W - GOAL_WIDTH) / 2;
 
 const BALL_START_X = CANVAS_W / 2;
-const BALL_START_Y = CANVAS_H - 95;
+const BALL_START_Y = CANVAS_H - 85;
 
 const TOTAL_PENALTIES = 5;
+const KEEPER_COVERAGE = 0.55;
+const KEEPER_DIVE_DELAY = 0.12;
 
-type GamePhase = "aim" | "height" | "effect" | "flying" | "scored" | "saved" | "finished";
-type HeightOption = "bajo" | "medio" | "alto";
-type EffectOption = "izq" | "centro" | "der";
+type GamePhase = "aim" | "charging" | "flying" | "scored" | "saved" | "finished";
 
 interface Goleador {
   id: string;
@@ -42,21 +42,13 @@ interface Goleador {
   updatedAt?: string;
 }
 
-interface ShotParams {
-  vx: number;
-  vy: number;
-  height: HeightOption;
-  effect: EffectOption;
-}
-
 function generateClientId(): string {
   return `penales_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 }
 
 function haptic(type: "light" | "medium" | "heavy" = "light") {
   if (typeof navigator === "undefined" || !navigator.vibrate) return;
-  const ms = type === "heavy" ? 30 : type === "medium" ? 20 : 10;
-  navigator.vibrate(ms);
+  navigator.vibrate(type === "heavy" ? 30 : type === "medium" ? 20 : 10);
 }
 
 function getKeeperHitbox(
@@ -64,32 +56,33 @@ function getKeeperHitbox(
   elapsed: number
 ): { x: number; y: number; w: number; h: number; handL: { x: number; y: number; r: number }; handR: { x: number; y: number; r: number } } {
   const goalCenter = GOAL_LEFT + GOAL_WIDTH / 2;
-  const keeperY = GOAL_TOP + GOAL_HEIGHT * 0.4;
-  const bodyW = 50;
-  const bodyH = 35;
-  const handR = 18;
+  const keeperY = GOAL_TOP + GOAL_HEIGHT * 0.38;
+  const bodyW = 45;
+  const bodyH = 32;
+  const handR = 16;
 
-  const diveDuration = 0.25;
-  const progress = Math.min(elapsed / diveDuration, 1);
-  const easeOut = 1 - Math.pow(1 - progress, 2);
+  const diveStart = KEEPER_DIVE_DELAY;
+  const diveDuration = 0.22;
+  const progress = elapsed < diveStart ? 0 : Math.min((elapsed - diveStart) / diveDuration, 1);
+  const easeOut = 1 - Math.pow(1 - progress, 1.5);
 
   let centerX = goalCenter;
   if (keeperDive === "left") {
-    centerX = goalCenter - 70 * easeOut;
+    centerX = goalCenter - 65 * easeOut;
   } else if (keeperDive === "right") {
-    centerX = goalCenter + 70 * easeOut;
+    centerX = goalCenter + 65 * easeOut;
   }
 
-  const handLOffset = keeperDive === "left" ? -35 : keeperDive === "right" ? -25 : -30;
-  const handROffset = keeperDive === "left" ? 25 : keeperDive === "right" ? 35 : 30;
+  const handLOffset = keeperDive === "left" ? -32 : keeperDive === "right" ? -22 : -28;
+  const handROffset = keeperDive === "left" ? 22 : keeperDive === "right" ? 32 : 28;
 
   return {
     x: centerX - bodyW / 2,
     y: keeperY - bodyH / 2,
     w: bodyW,
     h: bodyH,
-    handL: { x: centerX + handLOffset, y: keeperY - 5, r: handR },
-    handR: { x: centerX + handROffset, y: keeperY - 5, r: handR },
+    handL: { x: centerX + handLOffset, y: keeperY - 3, r: handR },
+    handR: { x: centerX + handROffset, y: keeperY - 3, r: handR },
   };
 }
 
@@ -115,9 +108,7 @@ export default function Penales() {
   const [tableVisible, setTableVisible] = useState(false);
   const [lastResult, setLastResult] = useState<"goal" | "saved" | null>(null);
   const [keeperDiving, setKeeperDiving] = useState<"left" | "center" | "right" | null>(null);
-  const [heightSel, setHeightSel] = useState<HeightOption>("medio");
-  const [effectSel, setEffectSel] = useState<EffectOption>("centro");
-  const [pendingShot, setPendingShot] = useState<ShotParams | null>(null);
+  const [aimPoint, setAimPoint] = useState<{ x: number; y: number } | null>(null);
 
   const gameRef = useRef({
     x: BALL_START_X,
@@ -138,7 +129,7 @@ export default function Penales() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasScaleRef = useRef(1);
-  const keeperDiveRef = useRef<"left" | "center" | "right">("center");
+  const pendingShotRef = useRef<{ targetX: number; targetY: number; power: number } | null>(null);
 
   const remainingPenalties = TOTAL_PENALTIES - attempts;
 
@@ -177,10 +168,7 @@ export default function Penales() {
       setShowCanvas(false);
       return;
     }
-    const t = requestAnimationFrame(() => {
-      requestAnimationFrame(() => setShowCanvas(true));
-    });
-    return () => cancelAnimationFrame(t);
+    requestAnimationFrame(() => requestAnimationFrame(() => setShowCanvas(true)));
   }, [stage, mounted]);
 
   const startGame = () => {
@@ -191,7 +179,7 @@ export default function Penales() {
     setAttempts(0);
     setStage(2);
     setPhase("aim");
-    setPendingShot(null);
+    setAimPoint({ x: GOAL_LEFT + GOAL_WIDTH / 2, y: GOAL_TOP + GOAL_HEIGHT / 2 });
     const g = gameRef.current;
     g.x = BALL_START_X;
     g.y = BALL_START_Y;
@@ -201,8 +189,8 @@ export default function Penales() {
 
   const pickKeeperDirection = useCallback((): "left" | "center" | "right" => {
     const r = Math.random();
-    if (r < 0.35) return "left";
-    if (r < 0.65) return "center";
+    if (r < 0.4) return "left";
+    if (r < 0.7) return "center";
     return "right";
   }, []);
 
@@ -210,11 +198,9 @@ export default function Penales() {
     const el = canvasRef.current;
     if (!el) return null;
     const rect = el.getBoundingClientRect();
-    const scaleX = CANVAS_W / rect.width;
-    const scaleY = CANVAS_H / rect.height;
     return {
-      x: (clientX - rect.left) * scaleX,
-      y: (clientY - rect.top) * scaleY,
+      x: ((clientX - rect.left) / rect.width) * CANVAS_W,
+      y: ((clientY - rect.top) / rect.height) * CANVAS_H,
     };
   }, []);
 
@@ -225,56 +211,44 @@ export default function Penales() {
       ctx.scale(dpr, dpr);
 
       const g = gameRef.current;
-
-      // Cielo / gradas (fondo)
-      const skyGrad = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
-      skyGrad.addColorStop(0, "#1e3a5f");
-      skyGrad.addColorStop(0.3, "#2563eb");
-      skyGrad.addColorStop(0.6, "#0ea5e9");
-      ctx.fillStyle = skyGrad;
-      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H * 0.5);
-
-      // PÚBLICO (gradas detrás del arco)
-      const crowdTop = 0;
-      const crowdH = 140;
-      ctx.fillStyle = "#334155";
-      ctx.fillRect(0, crowdTop, CANVAS_W, crowdH);
-      for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 24; col++) {
-          const colors = ["#dc2626", "#f59e0b", "#ffffff", "#1e293b", "#0ea5e9", "#22c55e"];
-          ctx.fillStyle = colors[(row * 3 + col) % colors.length];
-          ctx.beginPath();
-          ctx.arc(15 + col * 15, 20 + row * 16, 4, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-
-      // Césped
-      const grassGrad = ctx.createLinearGradient(0, CANVAS_H * 0.4, 0, CANVAS_H);
-      grassGrad.addColorStop(0, "#166534");
-      grassGrad.addColorStop(0.5, "#15803d");
-      grassGrad.addColorStop(1, "#14532d");
-      ctx.fillStyle = grassGrad;
-      ctx.fillRect(0, CANVAS_H * 0.4, CANVAS_W, CANVAS_H);
-
-      // Líneas de la cancha
-      ctx.strokeStyle = "rgba(255,255,255,0.7)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(30, CANVAS_H);
-      ctx.lineTo(CANVAS_W - 30, CANVAS_H);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(CANVAS_W / 2, BALL_START_Y + 30, 40, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // PORTERÍA
       const goalLeft = GOAL_LEFT;
       const goalRight = GOAL_LEFT + GOAL_WIDTH;
       const goalBottom = GOAL_TOP + GOAL_HEIGHT;
 
+      ctx.fillStyle = "#0c4a6e";
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H * 0.45);
+
+      ctx.fillStyle = "#1e293b";
+      ctx.fillRect(0, 0, CANVAS_W, 100);
+      for (let row = 0; row < 6; row++) {
+        for (let col = 0; col < 20; col++) {
+          const colors = ["#dc2626", "#f59e0b", "#ffffff", "#0ea5e9", "#22c55e"];
+          ctx.fillStyle = colors[(row * 2 + col) % colors.length];
+          ctx.beginPath();
+          ctx.arc(18 + col * 18, 25 + row * 14, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      const grassGrad = ctx.createLinearGradient(0, CANVAS_H * 0.35, 0, CANVAS_H);
+      grassGrad.addColorStop(0, "#166534");
+      grassGrad.addColorStop(0.6, "#15803d");
+      grassGrad.addColorStop(1, "#14532d");
+      ctx.fillStyle = grassGrad;
+      ctx.fillRect(0, CANVAS_H * 0.35, CANVAS_W, CANVAS_H);
+
+      ctx.strokeStyle = "rgba(255,255,255,0.8)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(25, CANVAS_H);
+      ctx.lineTo(CANVAS_W - 25, CANVAS_H);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(CANVAS_W / 2, BALL_START_Y + 28, 38, 0, Math.PI * 2);
+      ctx.stroke();
+
       ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 5;
+      ctx.lineWidth = 4;
       ctx.beginPath();
       ctx.moveTo(goalLeft, goalBottom);
       ctx.lineTo(goalLeft, GOAL_TOP);
@@ -282,120 +256,99 @@ export default function Penales() {
       ctx.lineTo(goalRight, goalBottom);
       ctx.stroke();
 
-      ctx.strokeStyle = "rgba(255,255,255,0.5)";
+      ctx.strokeStyle = "rgba(255,255,255,0.4)";
       ctx.lineWidth = 1;
-      const netSpacing = 10;
-      for (let i = 0; i <= GOAL_WIDTH; i += netSpacing) {
+      for (let i = 0; i <= GOAL_WIDTH; i += 12) {
         ctx.beginPath();
         ctx.moveTo(goalLeft + i, goalBottom);
         ctx.lineTo(goalLeft + i, GOAL_TOP);
         ctx.stroke();
       }
-      for (let j = 0; j <= GOAL_HEIGHT; j += netSpacing) {
+      for (let j = 0; j <= GOAL_HEIGHT; j += 12) {
         ctx.beginPath();
         ctx.moveTo(goalLeft, goalBottom - j);
         ctx.lineTo(goalRight, goalBottom - j);
         ctx.stroke();
       }
 
-      // PORTERO (cuerpo completo: brazos, piernas)
-      const keeperDivesLeft = keeperDiving === "left";
-      const keeperDivesRight = keeperDiving === "right";
       const elapsed = g.shotStartTime ? (performance.now() - g.shotStartTime) / 1000 : 0;
       const hitbox = getKeeperHitbox(keeperDiving, elapsed);
-
       const keeperCenterX = hitbox.x + hitbox.w / 2;
       const keeperY = hitbox.y + hitbox.h / 2;
 
       ctx.save();
       ctx.translate(keeperCenterX, keeperY);
       if (keeperDiving) {
-        ctx.rotate(keeperDivesLeft ? -0.2 : keeperDivesRight ? 0.2 : 0);
+        ctx.rotate(keeperDiving === "left" ? -0.18 : keeperDiving === "right" ? 0.18 : 0);
       }
       ctx.translate(-keeperCenterX, -keeperY);
 
-      // Piernas
       ctx.fillStyle = "#1e293b";
-      ctx.fillRect(keeperCenterX - 18, keeperY + 12, 10, 25);
-      ctx.fillRect(keeperCenterX + 8, keeperY + 12, 10, 25);
+      ctx.fillRect(keeperCenterX - 16, keeperY + 10, 8, 22);
+      ctx.fillRect(keeperCenterX + 8, keeperY + 10, 8, 22);
 
-      // Cuerpo (camiseta naranja)
       ctx.fillStyle = "#ea580c";
-      ctx.fillRect(keeperCenterX - 22, keeperY - 18, 44, 35);
+      ctx.fillRect(keeperCenterX - 20, keeperY - 16, 40, 32);
       ctx.strokeStyle = "#c2410c";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(keeperCenterX - 22, keeperY - 18, 44, 35);
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(keeperCenterX - 20, keeperY - 16, 40, 32);
 
-      // Brazos / guantes
       ctx.fillStyle = "#f59e0b";
       ctx.beginPath();
-      ctx.ellipse(hitbox.handL.x, hitbox.handL.y, 12, 10, 0, 0, Math.PI * 2);
-      ctx.ellipse(hitbox.handR.x, hitbox.handR.y, 12, 10, 0, 0, Math.PI * 2);
+      ctx.ellipse(hitbox.handL.x, hitbox.handL.y, 11, 9, 0, 0, Math.PI * 2);
+      ctx.ellipse(hitbox.handR.x, hitbox.handR.y, 11, 9, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
-      // Cabeza
-      ctx.fillStyle = "#fbbf24";
+      ctx.fillStyle = "#fde68a";
       ctx.beginPath();
-      ctx.arc(keeperCenterX, keeperY - 25, 12, 0, Math.PI * 2);
+      ctx.arc(keeperCenterX, keeperY - 22, 11, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
-
       ctx.restore();
 
-      // JUGADOR (vista desde atrás: cuerpo completo con camiseta rayada)
       const playerX = CANVAS_W / 2;
-      const playerY = CANVAS_H - 55;
+      const playerY = CANVAS_H - 50;
 
-      ctx.save();
-      ctx.translate(playerX, playerY);
-
-      // Piernas (short negro)
       ctx.fillStyle = "#1e293b";
-      ctx.fillRect(-12, 15, 10, 45);
-      ctx.fillRect(2, 15, 10, 45);
+      ctx.fillRect(playerX - 11, playerY + 12, 9, 40);
+      ctx.fillRect(playerX + 2, playerY + 12, 9, 40);
 
-      // Cuerpo (camiseta blanca y roja a rayas)
-      const stripeW = 5;
-      for (let i = -25; i < 25; i += stripeW) {
+      const stripeW = 4;
+      for (let i = -22; i < 22; i += stripeW) {
         ctx.fillStyle = (i / stripeW) % 2 === 0 ? "#ffffff" : "#dc2626";
-        ctx.fillRect(i, -35, stripeW + 1, 55);
+        ctx.fillRect(playerX + i, playerY - 32, stripeW + 1, 48);
       }
 
-      // Brazos (mangas rayadas)
       ctx.save();
-      ctx.translate(-28, -15);
-      for (let i = 0; i < 12; i++) {
+      ctx.translate(playerX - 25, playerY - 12);
+      for (let i = 0; i < 14; i++) {
         ctx.fillStyle = i % 2 === 0 ? "#ffffff" : "#dc2626";
-        ctx.fillRect(i * 4, 0, 5, 35);
+        ctx.fillRect(i * 3.5, 0, 4, 30);
       }
       ctx.restore();
       ctx.save();
-      ctx.translate(23, -15);
-      for (let i = 0; i < 12; i++) {
+      ctx.translate(playerX + 21, playerY - 12);
+      for (let i = 0; i < 14; i++) {
         ctx.fillStyle = i % 2 === 0 ? "#ffffff" : "#dc2626";
-        ctx.fillRect(i * 4, 0, 5, 35);
+        ctx.fillRect(i * 3.5, 0, 4, 30);
       }
       ctx.restore();
 
-      // Cabeza
-      ctx.fillStyle = "#fbbf24";
+      ctx.fillStyle = "#fde68a";
       ctx.beginPath();
-      ctx.arc(0, -45, 14, 0, Math.PI * 2);
+      ctx.arc(playerX, playerY - 42, 12, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
-      ctx.restore();
-
-      // Línea de tiro
       if (pullLine) {
         const dx = pullLine.x2 - pullLine.x1;
         const dy = pullLine.y2 - pullLine.y1;
         const len = Math.hypot(dx, dy);
-        const speed = Math.min(len * PULL_SCALE, MAX_SPEED);
-        ctx.strokeStyle = speed > MAX_SPEED * 0.6 ? "rgba(239, 68, 68, 0.9)" : "rgba(34, 197, 94, 0.95)";
+        const power = Math.min(len * PULL_SCALE, MAX_SPEED) / MAX_SPEED;
+        ctx.strokeStyle = power > 0.7 ? "rgba(239, 68, 68, 0.95)" : "rgba(34, 197, 94, 0.95)";
         ctx.lineWidth = 3;
-        ctx.setLineDash([6, 4]);
+        ctx.setLineDash([5, 4]);
         ctx.beginPath();
         ctx.moveTo(pullLine.x1, pullLine.y1);
         ctx.lineTo(pullLine.x2, pullLine.y2);
@@ -403,19 +356,28 @@ export default function Penales() {
         ctx.setLineDash([]);
       }
 
-      // Pelota
-      ctx.save();
-      ctx.translate(g.x, g.y);
+      if (aimPoint && phase === "aim") {
+        ctx.strokeStyle = "#ef4444";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(aimPoint.x, aimPoint.y, 14, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = "#fbbf24";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(aimPoint.x, aimPoint.y, 8, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
       ctx.fillStyle = "#f5f5dc";
       ctx.beginPath();
-      ctx.arc(0, 0, BALL_R, 0, Math.PI * 2);
+      ctx.arc(g.x, g.y, BALL_R, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = "#1e293b";
       ctx.lineWidth = 1.5;
       ctx.stroke();
-      ctx.restore();
     },
-    [keeperDiving, pullLine]
+    [keeperDiving, pullLine, aimPoint, phase]
   );
 
   const drawRef = useRef(draw);
@@ -428,7 +390,7 @@ export default function Penales() {
       const ctx = canvasRef.current?.getContext("2d");
       if (ctx) draw(ctx);
     }
-  }, [phase, pullLine, draw, showCanvas, heightSel, effectSel]);
+  }, [phase, pullLine, draw, showCanvas, aimPoint]);
 
   const setCanvasRef = useCallback((el: HTMLCanvasElement | null) => {
     (canvasRef as React.MutableRefObject<HTMLCanvasElement | null>).current = el;
@@ -448,16 +410,13 @@ export default function Penales() {
     if (!ctx) return;
 
     const g = gameRef.current;
-    const now = performance.now();
-    const dt = Math.min((now - g.lastTime) / 1000, 0.03);
-    g.lastTime = now;
-
-    const shot = pendingShot;
+    const shot = pendingShotRef.current;
     if (!shot) return;
 
-    const effectAccel = shot.effect === "izq" ? -2.5 : shot.effect === "der" ? 2.5 : 0;
+    const now = performance.now();
+    const dt = Math.min((now - g.lastTime) / 1000, 0.025);
+    g.lastTime = now;
 
-    g.vx += effectAccel * dt * 60;
     g.vy += GRAVITY * dt * 60;
     g.x += g.vx * dt * 60;
     g.y += g.vy * dt * 60;
@@ -477,7 +436,7 @@ export default function Penales() {
         setLastResult("saved");
         setPhase("saved");
         setAttempts((a) => a + 1);
-        setPendingShot(null);
+        pendingShotRef.current = null;
         setKeeperDiving(null);
         g.vx = 0;
         g.vy = 0;
@@ -485,9 +444,8 @@ export default function Penales() {
         g.y = BALL_START_Y;
         if (g.rafId != null) cancelAnimationFrame(g.rafId);
         g.rafId = null;
-        const nextAttempts = attempts + 1;
-        if (nextAttempts >= TOTAL_PENALTIES) setPhase("finished");
-        else setTimeout(() => setPhase("aim"), 1800);
+        if (attempts + 1 >= TOTAL_PENALTIES) setPhase("finished");
+        else setTimeout(() => setPhase("aim"), 1500);
         draw(ctx);
         return;
       }
@@ -495,16 +453,15 @@ export default function Penales() {
 
     const inGoalX = g.x >= GOAL_LEFT + BALL_R && g.x <= GOAL_LEFT + GOAL_WIDTH - BALL_R;
     const inGoalY = g.y >= GOAL_TOP && g.y <= GOAL_TOP + GOAL_HEIGHT - BALL_R;
-    const inGoal = inGoalX && inGoalY;
     const speed = Math.hypot(g.vx, g.vy);
 
-    if (inGoal && speed < 3) {
+    if (inGoalX && inGoalY && speed < 4) {
       haptic("medium");
       setScore((s) => s + 1);
       setLastResult("goal");
       setPhase("scored");
       setAttempts((a) => a + 1);
-      setPendingShot(null);
+      pendingShotRef.current = null;
       setKeeperDiving(null);
       g.vx = 0;
       g.vy = 0;
@@ -512,19 +469,18 @@ export default function Penales() {
       g.y = BALL_START_Y;
       if (g.rafId != null) cancelAnimationFrame(g.rafId);
       g.rafId = null;
-      const nextAttempts = attempts + 1;
-      if (nextAttempts >= TOTAL_PENALTIES) setPhase("finished");
-      else setTimeout(() => setPhase("aim"), 1800);
+      if (attempts + 1 >= TOTAL_PENALTIES) setPhase("finished");
+      else setTimeout(() => setPhase("aim"), 1500);
       draw(ctx);
       return;
     }
 
-    if (g.y > CANVAS_H + BALL_R * 2 || g.x < -BALL_R * 2 || g.x > CANVAS_W + BALL_R * 2 || (g.y > GOAL_TOP + GOAL_HEIGHT + 30 && !inGoalX && speed < 2)) {
+    if (g.y > CANVAS_H + BALL_R * 2 || g.x < -BALL_R * 2 || g.x > CANVAS_W + BALL_R * 2 || (g.y > GOAL_TOP + GOAL_HEIGHT + 25 && !inGoalX && speed < 3)) {
       setLastResult("saved");
       setPhase("saved");
       setAttempts((a) => a + 1);
       haptic("light");
-      setPendingShot(null);
+      pendingShotRef.current = null;
       setKeeperDiving(null);
       g.vx = 0;
       g.vy = 0;
@@ -532,25 +488,29 @@ export default function Penales() {
       g.y = BALL_START_Y;
       if (g.rafId != null) cancelAnimationFrame(g.rafId);
       g.rafId = null;
-      const nextAttempts = attempts + 1;
-      if (nextAttempts >= TOTAL_PENALTIES) setPhase("finished");
-      else setTimeout(() => setPhase("aim"), 1800);
+      if (attempts + 1 >= TOTAL_PENALTIES) setPhase("finished");
+      else setTimeout(() => setPhase("aim"), 1500);
       draw(ctx);
       return;
     }
 
     draw(ctx);
     gameRef.current.rafId = requestAnimationFrame(gameLoop);
-  }, [draw, attempts, keeperDiving, pendingShot]);
+  }, [draw, attempts, keeperDiving]);
 
   useEffect(() => {
-    if (phase !== "flying" || !pendingShot) return;
-    const heightMult = pendingShot.height === "bajo" ? 0.75 : pendingShot.height === "alto" ? 1.35 : 1;
+    if (phase !== "flying" || !pendingShotRef.current) return;
+
+    const shot = pendingShotRef.current;
     const g = gameRef.current;
+    const dx = shot.targetX - BALL_START_X;
+    const dy = shot.targetY - BALL_START_Y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const speed = Math.min(shot.power * MAX_SPEED, MAX_SPEED);
     g.x = BALL_START_X;
     g.y = BALL_START_Y;
-    g.vx = pendingShot.vx;
-    g.vy = pendingShot.vy * heightMult;
+    g.vx = (dx / dist) * speed;
+    g.vy = (dy / dist) * speed;
     g.lastTime = performance.now();
     g.shotStartTime = performance.now();
     g.keeperTouchedBall = false;
@@ -558,15 +518,24 @@ export default function Penales() {
     return () => {
       if (g.rafId != null) cancelAnimationFrame(g.rafId);
     };
-  }, [phase, pendingShot, gameLoop]);
+  }, [phase, gameLoop]);
 
-  const BALL_CLICK_RADIUS = 40;
+  const BALL_CLICK_RADIUS = 45;
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (stage !== 2 || phase !== "aim" || attempts >= TOTAL_PENALTIES || ballSelected) return;
+      if (stage !== 2 || phase !== "aim" || attempts >= TOTAL_PENALTIES) return;
       const p = getCanvasPoint(e.clientX, e.clientY);
       if (!p) return;
+
+      if (p.y < GOAL_TOP + GOAL_HEIGHT && p.x >= GOAL_LEFT && p.x <= GOAL_LEFT + GOAL_WIDTH) {
+        setAimPoint({
+          x: Math.max(GOAL_LEFT + 15, Math.min(GOAL_LEFT + GOAL_WIDTH - 15, p.x)),
+          y: Math.max(GOAL_TOP + 15, Math.min(GOAL_TOP + GOAL_HEIGHT - 15, p.y)),
+        });
+        return;
+      }
+
       const g = gameRef.current;
       const dist = Math.hypot(p.x - g.x, p.y - g.y);
       if (dist <= BALL_CLICK_RADIUS) {
@@ -577,16 +546,8 @@ export default function Penales() {
         setPullLine({ x1: g.x, y1: g.y, x2: p.x, y2: p.y });
       }
     },
-    [stage, phase, attempts, ballSelected, getCanvasPoint]
+    [stage, phase, attempts, getCanvasPoint]
   );
-
-  const executeShot = useCallback((shot: ShotParams) => {
-    const keeperDir = pickKeeperDirection();
-    keeperDiveRef.current = keeperDir;
-    setKeeperDiving(keeperDir);
-    setPendingShot(shot);
-    setPhase("flying");
-  }, [pickKeeperDirection]);
 
   useLayoutEffect(() => {
     if (stage !== 2 || !showCanvas) return;
@@ -595,9 +556,10 @@ export default function Penales() {
       const canvas = canvasRef.current;
       if (!canvas) return null;
       const rect = canvas.getBoundingClientRect();
-      const scaleX = CANVAS_W / rect.width;
-      const scaleY = CANVAS_H / rect.height;
-      return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+      return {
+        x: ((clientX - rect.left) / rect.width) * CANVAS_W,
+        y: ((clientY - rect.top) / rect.height) * CANVAS_H,
+      };
     };
 
     const onMove = (e: PointerEvent) => {
@@ -631,15 +593,16 @@ export default function Penales() {
 
       if (len < MIN_PULL) return;
 
+      const target = aimPoint ?? { x: GOAL_LEFT + GOAL_WIDTH / 2, y: GOAL_TOP + GOAL_HEIGHT / 2 };
+      const pullScale = e.pointerType === "touch" ? PULL_SCALE_MOBILE : PULL_SCALE;
+      const power = Math.min(len * pullScale, MAX_SPEED) / MAX_SPEED;
+
       haptic("light");
 
-      const pullScale = e.pointerType === "touch" ? PULL_SCALE_MOBILE : PULL_SCALE;
-      const speed = Math.min(len * pullScale, MAX_SPEED);
-      const vx = (dx / len) * speed;
-      const vy = (dy / len) * speed;
-
-      setPendingShot({ vx, vy, height: heightSel, effect: effectSel });
-      setPhase("height");
+      const keeperDir = pickKeeperDirection();
+      setKeeperDiving(keeperDir);
+      pendingShotRef.current = { targetX: target.x, targetY: target.y, power: Math.max(0.5, power) };
+      setPhase("flying");
     };
 
     window.addEventListener("pointermove", onMove);
@@ -650,13 +613,13 @@ export default function Penales() {
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [stage, showCanvas, heightSel, effectSel]);
+  }, [stage, showCanvas, pickKeeperDirection, aimPoint]);
 
   const exitToStage1 = () => {
     if (score > 0 && clientId && name) saveScore(score);
     setStage(1);
     setPhase("aim");
-    setPendingShot(null);
+    pendingShotRef.current = null;
   };
 
   const sortedGoleadores = [...goleadores].sort((a, b) => b.goals - a.goals);
@@ -672,7 +635,7 @@ export default function Penales() {
           ⚽ PENALES <span className="text-amber-400">ALAMICOS</span> ⚽
         </motion.h2>
         <motion.p initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="text-center text-white/70 font-body text-sm mb-8">
-          Fuerza · Dirección · Altura · Efecto · 5 penales
+          Toca el arco para apuntar · Arrastra la pelota hacia abajo para patear · 5 penales
         </motion.p>
 
         {stage === 1 && (
@@ -715,46 +678,6 @@ export default function Penales() {
               )}
             </div>
 
-            {(phase === "height" || phase === "effect") && pendingShot && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 p-4 rounded-xl bg-black/80 border border-amber-500/30">
-                {phase === "height" && (
-                  <>
-                    <p className="text-white/80 font-body text-sm mb-2">Altura del tiro</p>
-                    <div className="flex gap-2 mb-3">
-                      {(["bajo", "medio", "alto"] as const).map((h) => (
-                        <button key={h} type="button" onClick={() => { setHeightSel(h); setPhase("effect"); }} className={`flex-1 py-2 rounded-lg font-body text-sm ${heightSel === h ? "bg-amber-500 text-white" : "bg-white/20 text-white/80"}`}>
-                          {h === "bajo" ? "Bajo" : h === "medio" ? "Medio" : "Alto"}
-                        </button>
-                      ))}
-                    </div>
-                    <button type="button" onClick={() => { setPendingShot(null); setPhase("aim"); }} className="text-white/60 text-xs hover:text-white/80">
-                      Cancelar
-                    </button>
-                  </>
-                )}
-                {phase === "effect" && (
-                  <>
-                    <p className="text-white/80 font-body text-sm mb-2">Efecto</p>
-                    <div className="flex gap-2 mb-3">
-                      {(["izq", "centro", "der"] as const).map((e) => (
-                        <button key={e} type="button" onClick={() => setEffectSel(e)} className={`flex-1 py-2 rounded-lg font-body text-sm ${effectSel === e ? "bg-amber-500 text-white" : "bg-white/20 text-white/80"}`}>
-                          {e === "izq" ? "Izq" : e === "centro" ? "Centro" : "Der"}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => { setPendingShot(null); setPhase("height"); }} className="text-white/60 text-xs hover:text-white/80 py-1">
-                        ← Volver
-                      </button>
-                      <motion.button type="button" onClick={() => pendingShot && executeShot({ ...pendingShot, height: heightSel, effect: effectSel })} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 py-3 rounded-xl font-display text-lg text-white bg-green-600 hover:bg-green-500">
-                        ⚽ Patear
-                      </motion.button>
-                    </div>
-                  </>
-                )}
-              </motion.div>
-            )}
-
             <AnimatePresence mode="wait">
               {lastResult === "goal" && (
                 <motion.div key="goal" initial={{ opacity: 0, scale: 0.3 }} animate={{ opacity: 1, scale: [0.3, 1.2, 1] }} exit={{ opacity: 0 }} className="text-center mt-4">
@@ -770,7 +693,7 @@ export default function Penales() {
 
             {phase === "aim" && (
               <p className="text-center text-white/50 text-xs font-body mt-3">
-                1) Toca la pelota · 2) Arrastra hacia abajo · 3) Elige altura y efecto · 4) Patear
+                1) Toca dónde quieres meter el gol · 2) Arrastra la pelota hacia abajo y suelta
               </p>
             )}
 
