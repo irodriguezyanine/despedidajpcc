@@ -119,6 +119,13 @@ export default class PenaltyScene extends Phaser.Scene {
     lineGraphics.lineBetween(0, goalBottom, SCENE_W, goalBottom);
     lineGraphics.setDepth(1);
 
+    // Línea del área chica (entre el punto penal y la portería)
+    const smallAreaY = goalBottom + (BALL_START_Y - goalBottom) * 0.35;
+    const smallAreaLine = this.add.graphics();
+    smallAreaLine.lineStyle(3, 0xffffff, 0.85);
+    smallAreaLine.lineBetween(0, smallAreaY, SCENE_W, smallAreaY);
+    smallAreaLine.setDepth(1);
+
     // Portero parado en la línea de portería
     const keeperCenterX = GOAL_LEFT + GOAL_WIDTH / 2;
     const keeperY = goalBottom;

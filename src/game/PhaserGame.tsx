@@ -12,9 +12,10 @@ interface PhaserGameProps {
   onGameReady?: (game: Phaser.Game) => void;
   onGoal?: () => void;
   onSaved?: () => void;
+  disabled?: boolean;
 }
 
-export default function PhaserGame({ className = "", onGameReady, onGoal, onSaved }: PhaserGameProps) {
+export default function PhaserGame({ className = "", onGameReady, onGoal, onSaved, disabled = false }: PhaserGameProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   const onGoalRef = useRef(onGoal);
@@ -62,5 +63,16 @@ export default function PhaserGame({ className = "", onGameReady, onGoal, onSave
     };
   }, [onGameReady]);
 
-  return <div ref={containerRef} className={className} style={{ minHeight: GAME_H }} />;
+  return (
+    <div className="relative">
+      <div ref={containerRef} className={className} style={{ minHeight: GAME_H }} />
+      {disabled && (
+        <div
+          className="absolute inset-0 z-10"
+          style={{ minHeight: GAME_H }}
+          aria-hidden
+        />
+      )}
+    </div>
+  );
 }
