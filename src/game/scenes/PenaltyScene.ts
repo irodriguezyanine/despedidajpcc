@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 
 const SCENE_W = 360;
-const SCENE_H = 500;
+const SCENE_H = 600;
 const BALL_R = 18;
 const GOAL_TOP = 20;
 const GOAL_HEIGHT = 100;
@@ -12,11 +12,11 @@ const GOAL_BOTTOM = GOAL_TOP + GOAL_HEIGHT;
 const BALL_START_X = SCENE_W / 2;
 const BALL_START_Y = SCENE_H - 85;
 const CROSSHAIR_MARGIN = 12;
-const CHARGE_TIME_MS = 1500;
+const CHARGE_TIME_MS = 1000;
 const MIN_VELOCITY = 80;
 const MAX_VELOCITY = 350;
 const POWER_BAR_X = SCENE_W / 2;
-const POWER_BAR_Y = SCENE_H - 25;
+const POWER_BAR_Y = SCENE_H - 60;
 const POWER_BAR_W = 200;
 const POWER_BAR_H = 12;
 const KEEPER_REACTION_DELAY_MIN = 80;
@@ -117,9 +117,9 @@ export default class PenaltyScene extends Phaser.Scene {
     lineGraphics.lineBetween(0, goalBottom, SCENE_W, goalBottom);
     lineGraphics.setDepth(1);
 
-    // Portero en el centro de la portería
+    // Portero parado en la línea de portería
     const keeperCenterX = GOAL_LEFT + GOAL_WIDTH / 2;
-    const keeperY = goalBottom - 35;
+    const keeperY = goalBottom;
     this.keeper = this.add.image(keeperCenterX, keeperY, "keeper");
     this.keeper.setOrigin(0.5, 1);
     this.keeper.setDepth(5);
@@ -128,7 +128,7 @@ export default class PenaltyScene extends Phaser.Scene {
     this.ball = this.physics.add.image(BALL_START_X, BALL_START_Y, "ball");
     this.ball.setCircle(BALL_R - 2);
     this.ball.setCollideWorldBounds(true);
-    this.ball.setBounce(0.4);
+    this.ball.setBounce(0);
     this.ball.setDamping(true);
     this.ball.setDrag(0.98);
     this.ball.setMaxVelocity(450);
@@ -199,6 +199,10 @@ export default class PenaltyScene extends Phaser.Scene {
       const power = this.getChargePower();
       this.updatePowerBar(power);
     }
+    const v = this.ball.body?.velocity;
+    if (v && this.ball.y < BALL_START_Y && v.y > 0) {
+      this.ball.setVelocity(v.x, 0);
+    }
   }
 
   private canShoot(): boolean {
@@ -247,12 +251,12 @@ export default class PenaltyScene extends Phaser.Scene {
     this.moveKeeperToTarget(targetX, targetY);
   }
 
-  private moveKeeperToTarget(targetX: number, targetY: number) {
+  private moveKeeperToTarget(targetX: number, _targetY: number) {
     const keeperHalfW = 28;
+    const keeperY = GOAL_BOTTOM;
     const clampedX = Phaser.Math.Clamp(targetX, GOAL_LEFT + keeperHalfW, GOAL_RIGHT - keeperHalfW);
-    const clampedY = Phaser.Math.Clamp(targetY, GOAL_TOP + 25, GOAL_BOTTOM - 20);
 
-    const distance = Phaser.Math.Distance.Between(this.keeper.x, this.keeper.y, clampedX, clampedY);
+    const distance = Math.abs(this.keeper.x - clampedX);
     const duration = (distance / KEEPER_SPEED) * 1000;
     const delay = Phaser.Math.Between(KEEPER_REACTION_DELAY_MIN, KEEPER_REACTION_DELAY_MAX);
 
@@ -261,7 +265,6 @@ export default class PenaltyScene extends Phaser.Scene {
       this.tweens.add({
         targets: this.keeper,
         x: clampedX,
-        y: clampedY,
         duration,
         ease: "Sine.easeOut",
       });
@@ -277,7 +280,7 @@ export default class PenaltyScene extends Phaser.Scene {
     this.ball.setPosition(BALL_START_X, BALL_START_Y);
     this.tweens.killTweensOf(this.keeper);
     const keeperCenterX = GOAL_LEFT + GOAL_WIDTH / 2;
-    const keeperY = GOAL_BOTTOM - 35;
+    const keeperY = GOAL_BOTTOM;
     this.keeper.setPosition(keeperCenterX, keeperY);
   }
 

@@ -22,7 +22,7 @@ function generateClientId(): string {
 const PhaserGame = dynamic(() => import("@/game/PhaserGame"), {
   ssr: false,
   loading: () => (
-    <div className="flex items-center justify-center bg-[#0d2818]" style={{ width: 360, height: 500 }}>
+    <div className="flex items-center justify-center bg-[#0d2818]" style={{ width: 360, height: 600 }}>
       <p className="text-white/60 font-body text-sm">Cargando juego...</p>
     </div>
   ),
@@ -152,7 +152,7 @@ export default function Penales() {
               <span className="font-body text-sm text-white/80">{name}</span>
             </div>
 
-            <div className="relative mx-auto rounded-xl border-2 border-white/20 overflow-hidden touch-none select-none" style={{ maxWidth: 360 }}>
+            <div className="relative mx-auto rounded-xl border-2 border-white/20 overflow-hidden touch-none select-none" style={{ maxWidth: 360, minHeight: 600 }}>
               <PhaserGame className="w-full" />
             </div>
 

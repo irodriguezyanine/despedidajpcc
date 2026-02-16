@@ -14,7 +14,7 @@ const SYMBOLS = [
   { id: "alseco", label: "🥃 Al seco", emoji: "🥃" },
   { id: "regala2", label: "🎁 Regala 2", emoji: "🎁" },
   { id: "regala4", label: "🎀 Regala 4", emoji: "🎀" },
-  { id: "llamaex", label: "📞 Llama a tu ex", emoji: "📞" },
+  { id: "lagartijas", label: "🦎 5 Lagartijas", emoji: "🦎" },
   { id: "tapita", label: "🍺 Tapita", emoji: "🍺" },
   { id: "regalaalseco", label: "🥴 Regala al seco", emoji: "🥴" },
 ];
@@ -41,19 +41,17 @@ export default function SlotMachine() {
     setShowResult(false);
     setResult(null);
 
-    const newReels = Array.from({ length: REELS }, () => generateReel(ROWS * 3));
+    const winner = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+    const centerIdx = ROWS + Math.floor(ROWS / 2) - 1;
+    const newReels = Array.from({ length: REELS }, () => {
+      const reel = generateReel(ROWS * 3);
+      reel[centerIdx] = winner;
+      return reel;
+    });
     setReels(newReels);
 
     const timeout = setTimeout(() => {
       setSpinning(false);
-      const centerRow = Math.floor(ROWS / 2);
-      const centerSymbols = newReels.map((r) => r[centerRow + ROWS]);
-      const counts: Record<string, number> = {};
-      centerSymbols.forEach((s) => {
-        counts[s.id] = (counts[s.id] ?? 0) + 1;
-      });
-      const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-      const winner = sorted[0] ? SYMBOLS.find((s) => s.id === sorted[0][0]) ?? centerSymbols[0] : centerSymbols[0];
       setResult(winner);
       setShowResult(true);
     }, SPIN_DURATION_MS);
@@ -171,7 +169,7 @@ export default function SlotMachine() {
           </AnimatePresence>
 
           <p className="text-center text-white/40 text-xs font-body mt-4">
-            Símbolos: Toma 1 · Shot · Piquito · Al seco · Regala 2 · Regala 4 · Llama a tu ex · Tapita · Regala al seco
+            Símbolos: Toma 1 · Shot · Piquito · Al seco · Regala 2 · Regala 4 · 5 Lagartijas · Tapita · Regala al seco
           </p>
         </motion.div>
       </div>

@@ -5,7 +5,7 @@ import * as Phaser from "phaser";
 import PenaltyScene from "./scenes/PenaltyScene";
 
 const GAME_W = 360;
-const GAME_H = 500;
+const GAME_H = 600;
 
 interface PhaserGameProps {
   className?: string;
