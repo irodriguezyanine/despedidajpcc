@@ -637,7 +637,7 @@ export default function BeerPong() {
           setCupsHit(cupsHitRef.current);
           const newParticipants = curPlayer
             ? participantsRef.current.map((p) =>
-                p.id === curPlayer ? { ...p, score: p.score + 1, playedAt: new Date().toISOString() } : p
+                p.id === curPlayer ? { ...p, score: p.score + 1 } : p
               )
             : participantsRef.current;
           participantsRef.current = newParticipants;

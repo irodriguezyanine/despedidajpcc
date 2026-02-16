@@ -69,16 +69,18 @@ export async function POST(request: Request) {
     const supabase = createSupabaseClient();
 
     // Guardar cada participante/intento por separado (no sumar puntajes, cada intento es una fila)
+    // Usar playedAt del cliente para conservar la hora exacta de cada jugada
     for (const p of clientData) {
       const clientId = String(p?.id ?? "").trim();
       const name = String(p?.name ?? "").trim();
       if (!clientId || !name) continue;
       const score = Math.max(0, Number(p?.score ?? 0));
       const nameLower = name.toLowerCase();
+      const playedAt = p?.playedAt ? new Date(p.playedAt).toISOString() : new Date().toISOString();
 
       const { data: existing } = await supabase
         .from("beerpong_leaderboard")
-        .select("id")
+        .select("id, score")
         .eq("client_id", clientId)
         .maybeSingle();
 
@@ -87,14 +89,17 @@ export async function POST(request: Request) {
         name,
         name_lower: nameLower,
         score,
-        updated_at: new Date().toISOString(),
+        updated_at: playedAt,
       };
 
       if (existing) {
-        await supabase
-          .from("beerpong_leaderboard")
-          .update(row)
-          .eq("id", existing.id);
+        // Solo actualizar si el puntaje mejoró; conservar playedAt del cliente
+        if (score >= existing.score) {
+          await supabase
+            .from("beerpong_leaderboard")
+            .update(row)
+            .eq("id", existing.id);
+        }
       } else {
         await supabase.from("beerpong_leaderboard").insert(row);
       }
