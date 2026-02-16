@@ -56,10 +56,11 @@ function getKeeperHitbox(
   elapsed: number
 ): { x: number; y: number; w: number; h: number; handL: { x: number; y: number; r: number }; handR: { x: number; y: number; r: number } } {
   const goalCenter = GOAL_LEFT + GOAL_WIDTH / 2;
-  const keeperY = GOAL_TOP + GOAL_HEIGHT * 0.38;
-  const bodyW = 45;
-  const bodyH = 32;
-  const handR = 16;
+  const goalBottom = GOAL_TOP + GOAL_HEIGHT;
+  const keeperY = goalBottom - 35;
+  const bodyW = 50;
+  const bodyH = 40;
+  const handR = 18;
 
   const diveStart = KEEPER_DIVE_DELAY;
   const diveDuration = 0.22;
@@ -68,21 +69,21 @@ function getKeeperHitbox(
 
   let centerX = goalCenter;
   if (keeperDive === "left") {
-    centerX = goalCenter - 65 * easeOut;
+    centerX = goalCenter - 70 * easeOut;
   } else if (keeperDive === "right") {
-    centerX = goalCenter + 65 * easeOut;
+    centerX = goalCenter + 70 * easeOut;
   }
 
-  const handLOffset = keeperDive === "left" ? -32 : keeperDive === "right" ? -22 : -28;
-  const handROffset = keeperDive === "left" ? 22 : keeperDive === "right" ? 32 : 28;
+  const handLOffset = keeperDive === "left" ? -35 : keeperDive === "right" ? -25 : -30;
+  const handROffset = keeperDive === "left" ? 25 : keeperDive === "right" ? 35 : 30;
 
   return {
     x: centerX - bodyW / 2,
     y: keeperY - bodyH / 2,
     w: bodyW,
     h: bodyH,
-    handL: { x: centerX + handLOffset, y: keeperY - 3, r: handR },
-    handR: { x: centerX + handROffset, y: keeperY - 3, r: handR },
+    handL: { x: centerX + handLOffset, y: keeperY, r: handR },
+    handR: { x: centerX + handROffset, y: keeperY, r: handR },
   };
 }
 
@@ -130,8 +131,34 @@ export default function Penales() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasScaleRef = useRef(1);
   const pendingShotRef = useRef<{ targetX: number; targetY: number; power: number } | null>(null);
+  const playerImgRef = useRef<HTMLImageElement | null>(null);
+  const keeperImgRef = useRef<HTMLImageElement | null>(null);
+  const [imagesLoaded, setImagesLoaded] = useState(false);
 
   const remainingPenalties = TOTAL_PENALTIES - attempts;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let loaded = 0;
+    const total = 2;
+    const onLoad = () => {
+      loaded++;
+      if (loaded >= total) setImagesLoaded(true);
+    };
+    const playerImg = new Image();
+    playerImg.onload = onLoad;
+    playerImg.src = "/player-penalty.png";
+    playerImgRef.current = playerImg;
+
+    const keeperImg = new Image();
+    keeperImg.onload = onLoad;
+    keeperImg.src = "/goalkeeper-penalty.png";
+    keeperImgRef.current = keeperImg;
+    return () => {
+      playerImgRef.current = null;
+      keeperImgRef.current = null;
+    };
+  }, []);
 
   const fetchLeaderboard = useCallback(async () => {
     try {
@@ -256,6 +283,13 @@ export default function Penales() {
       ctx.lineTo(goalRight, goalBottom);
       ctx.stroke();
 
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(0, goalBottom);
+      ctx.lineTo(CANVAS_W, goalBottom);
+      ctx.stroke();
+
       ctx.strokeStyle = "rgba(255,255,255,0.4)";
       ctx.lineWidth = 1;
       for (let i = 0; i <= GOAL_WIDTH; i += 12) {
@@ -274,72 +308,58 @@ export default function Penales() {
       const elapsed = g.shotStartTime ? (performance.now() - g.shotStartTime) / 1000 : 0;
       const hitbox = getKeeperHitbox(keeperDiving, elapsed);
       const keeperCenterX = hitbox.x + hitbox.w / 2;
-      const keeperY = hitbox.y + hitbox.h / 2;
+      const keeperBottom = goalBottom;
 
-      ctx.save();
-      ctx.translate(keeperCenterX, keeperY);
-      if (keeperDiving) {
-        ctx.rotate(keeperDiving === "left" ? -0.18 : keeperDiving === "right" ? 0.18 : 0);
+      const keeperImg = keeperImgRef.current;
+      if (keeperImg && keeperImg.complete && keeperImg.naturalWidth > 0) {
+        const kw = 90;
+        const kh = (keeperImg.naturalHeight / keeperImg.naturalWidth) * kw;
+        ctx.save();
+        ctx.translate(keeperCenterX, keeperBottom);
+        if (keeperDiving) {
+          ctx.rotate(keeperDiving === "left" ? -0.15 : keeperDiving === "right" ? 0.15 : 0);
+        }
+        ctx.translate(-kw / 2, -kh);
+        ctx.drawImage(keeperImg, 0, 0, kw, kh);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = "#1e293b";
+        ctx.fillRect(keeperCenterX - 16, keeperBottom - 50, 8, 22);
+        ctx.fillRect(keeperCenterX + 8, keeperBottom - 50, 8, 22);
+        ctx.fillStyle = "#ea580c";
+        ctx.fillRect(keeperCenterX - 20, keeperBottom - 66, 40, 32);
+        ctx.fillStyle = "#fde68a";
+        ctx.beginPath();
+        ctx.arc(keeperCenterX, keeperBottom - 72, 11, 0, Math.PI * 2);
+        ctx.fill();
       }
-      ctx.translate(-keeperCenterX, -keeperY);
-
-      ctx.fillStyle = "#1e293b";
-      ctx.fillRect(keeperCenterX - 16, keeperY + 10, 8, 22);
-      ctx.fillRect(keeperCenterX + 8, keeperY + 10, 8, 22);
-
-      ctx.fillStyle = "#ea580c";
-      ctx.fillRect(keeperCenterX - 20, keeperY - 16, 40, 32);
-      ctx.strokeStyle = "#c2410c";
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(keeperCenterX - 20, keeperY - 16, 40, 32);
-
-      ctx.fillStyle = "#f59e0b";
-      ctx.beginPath();
-      ctx.ellipse(hitbox.handL.x, hitbox.handL.y, 11, 9, 0, 0, Math.PI * 2);
-      ctx.ellipse(hitbox.handR.x, hitbox.handR.y, 11, 9, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = "#fde68a";
-      ctx.beginPath();
-      ctx.arc(keeperCenterX, keeperY - 22, 11, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
 
       const playerX = CANVAS_W / 2;
-      const playerY = CANVAS_H - 50;
+      const playerBottom = CANVAS_H - 5;
 
-      ctx.fillStyle = "#1e293b";
-      ctx.fillRect(playerX - 11, playerY + 12, 9, 40);
-      ctx.fillRect(playerX + 2, playerY + 12, 9, 40);
-
-      const stripeW = 4;
-      for (let i = -22; i < 22; i += stripeW) {
-        ctx.fillStyle = (i / stripeW) % 2 === 0 ? "#ffffff" : "#dc2626";
-        ctx.fillRect(playerX + i, playerY - 32, stripeW + 1, 48);
+      const playerImg = playerImgRef.current;
+      if (playerImg && playerImg.complete && playerImg.naturalWidth > 0) {
+        const pw = 100;
+        const ph = (playerImg.naturalHeight / playerImg.naturalWidth) * pw;
+        ctx.save();
+        ctx.translate(playerX, playerBottom);
+        ctx.translate(-pw / 2, -ph);
+        ctx.drawImage(playerImg, 0, 0, pw, ph);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = "#1e293b";
+        ctx.fillRect(playerX - 11, playerBottom - 55, 9, 40);
+        ctx.fillRect(playerX + 2, playerBottom - 55, 9, 40);
+        const stripeW = 4;
+        for (let i = -22; i < 22; i += stripeW) {
+          ctx.fillStyle = (i / stripeW) % 2 === 0 ? "#ffffff" : "#dc2626";
+          ctx.fillRect(playerX + i, playerBottom - 95, stripeW + 1, 48);
+        }
+        ctx.fillStyle = "#fde68a";
+        ctx.beginPath();
+        ctx.arc(playerX, playerBottom - 105, 12, 0, Math.PI * 2);
+        ctx.fill();
       }
-
-      ctx.save();
-      ctx.translate(playerX - 25, playerY - 12);
-      for (let i = 0; i < 14; i++) {
-        ctx.fillStyle = i % 2 === 0 ? "#ffffff" : "#dc2626";
-        ctx.fillRect(i * 3.5, 0, 4, 30);
-      }
-      ctx.restore();
-      ctx.save();
-      ctx.translate(playerX + 21, playerY - 12);
-      for (let i = 0; i < 14; i++) {
-        ctx.fillStyle = i % 2 === 0 ? "#ffffff" : "#dc2626";
-        ctx.fillRect(i * 3.5, 0, 4, 30);
-      }
-      ctx.restore();
-
-      ctx.fillStyle = "#fde68a";
-      ctx.beginPath();
-      ctx.arc(playerX, playerY - 42, 12, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
 
       if (pullLine) {
         const dx = pullLine.x2 - pullLine.x1;
@@ -390,7 +410,7 @@ export default function Penales() {
       const ctx = canvasRef.current?.getContext("2d");
       if (ctx) draw(ctx);
     }
-  }, [phase, pullLine, draw, showCanvas, aimPoint]);
+  }, [phase, pullLine, draw, showCanvas, aimPoint, imagesLoaded]);
 
   const setCanvasRef = useCallback((el: HTMLCanvasElement | null) => {
     (canvasRef as React.MutableRefObject<HTMLCanvasElement | null>).current = el;
