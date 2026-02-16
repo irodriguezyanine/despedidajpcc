@@ -109,9 +109,10 @@ export default function VotingSection() {
     setVotes(Array.isArray(data) ? data : loadVotesLocal());
   }, []);
 
+  // Solo cargar votos al montar; no refrescar al cambiar de etapa (evita que se borren tras votar)
   useEffect(() => {
     refreshVotes();
-  }, [refreshVotes, stage]);
+  }, [refreshVotes]);
 
   const handleRegister = () => {
     setError("");
@@ -327,8 +328,9 @@ export default function VotingSection() {
               {votes.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     setError("");
+                    await refreshVotes();
                     setStage(4);
                   }}
                   className="mt-4 w-full py-2 text-white/60 hover:text-white font-body text-sm transition-colors"

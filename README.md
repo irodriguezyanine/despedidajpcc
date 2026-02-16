@@ -32,7 +32,15 @@ Para que los puntajes del Beer Pong y los votos de la encuesta se guarden entre 
 3. Copia `.env.example` a `.env.local` y añade tu URL y clave de Supabase (desde Project Settings > API).
 4. Reinicia el servidor de desarrollo.
 
-Para borrar el puntaje de Rodri de la tabla beerpong, ejecuta `supabase-borrar-rodri.sql` en el SQL Editor.
+**Dónde ejecutar el SQL:**
+1. Entra a [supabase.com/dashboard](https://supabase.com/dashboard)
+2. Abre tu proyecto
+3. Menú izquierdo → **SQL Editor**
+4. **New query**
+5. Pega el contenido del archivo SQL y haz clic en **Run** (o Ctrl+Enter)
+
+- Solo encuesta: `supabase-encuesta-solo.sql` (si beerpong ya está configurado)
+- Borrar Rodri: `supabase-borrar-rodri.sql`
 
 Sin Supabase configurado, los datos se guardan solo en el navegador (localStorage).
 
