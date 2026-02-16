@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { viewportSmooth } from "@/lib/motion";
 import { Shirt } from "lucide-react";
 
 const SQUAD = [
@@ -31,7 +32,7 @@ const container = {
 };
 
 const item = {
-  hidden: { opacity: 0, y: 20 },
+  hidden: { opacity: 0, y: 12 },
   show: { opacity: 1, y: 0 },
 };
 
@@ -47,9 +48,10 @@ export default function Squad() {
       <div className="absolute inset-0 bg-gradient-to-r from-real-red/5 via-transparent to-cyan-500/5" />
       <div className="relative z-10 max-w-6xl mx-auto">
         <motion.h2
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 12 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          viewport={viewportSmooth}
+          transition={{ duration: 0.4, ease: "easeOut" }}
           className="font-display text-3xl sm:text-4xl md:text-5xl text-center mb-2 text-white"
         >
           ALAMICOS <span className="text-red-400">R.F.C</span>
@@ -57,7 +59,7 @@ export default function Squad() {
         <motion.p
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
+          viewport={viewportSmooth}
           className="text-center text-white/60 font-body text-sm mb-10"
         >
           LA NOMINA
@@ -67,7 +69,7 @@ export default function Squad() {
           variants={container}
           initial="hidden"
           whileInView="show"
-          viewport={{ once: true }}
+          viewport={viewportSmooth}
           className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4"
         >
           {SQUAD.map((person) => (

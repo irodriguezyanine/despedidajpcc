@@ -51,6 +51,30 @@ CREATE POLICY "Encuesta escritura pública" ON encuesta_votos
   FOR ALL USING (true) WITH CHECK (true);
 
 -- ============================================
+-- Tabla para ranking de goleadores (Penales)
+-- ============================================
+CREATE TABLE IF NOT EXISTS penales_goleadores (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  name_lower TEXT NOT NULL,
+  goals INTEGER NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(client_id)
+);
+
+ALTER TABLE penales_goleadores ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Penales lectura pública" ON penales_goleadores;
+DROP POLICY IF EXISTS "Penales escritura pública" ON penales_goleadores;
+
+CREATE POLICY "Penales lectura pública" ON penales_goleadores
+  FOR SELECT USING (true);
+
+CREATE POLICY "Penales escritura pública" ON penales_goleadores
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- ============================================
 -- Para borrar Rodri 33 de la tabla beerpong (ejecutar si ya existe):
 -- ============================================
 -- DELETE FROM beerpong_leaderboard WHERE name_lower = 'rodri';

@@ -23,11 +23,20 @@
   box-sizing: border-box;
   padding: 0;
   margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: 1rem;
 }
+
+/* Evitar saltos al hacer scroll a anclas */
+section[id] {
+  scroll-margin-top: 1rem;
+}
+
 
 body {
   /* 50% fútbol (verde estadio) + 50% fiesta (azul/neon) */

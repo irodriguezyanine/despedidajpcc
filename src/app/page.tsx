@@ -6,8 +6,10 @@ import MapSection from "@/components/MapSection";
 import BeerPong from "@/components/BeerPong";
 import VotingSection from "@/components/VotingSection";
 import SpotifySection from "@/components/SpotifySection";
-import Footer from "@/components/Footer";
 import InstagramSection from "@/components/InstagramSection";
+import SlotMachine from "@/components/SlotMachine";
+import Penales from "@/components/Penales";
+import Footer from "@/components/Footer";
 
 export default function Home() {
   return (
@@ -21,6 +23,8 @@ export default function Home() {
       <VotingSection />
       <SpotifySection />
       <InstagramSection />
+      <SlotMachine />
+      <Penales />
       <Footer />
     </main>
   );

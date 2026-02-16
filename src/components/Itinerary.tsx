@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { Clock, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { viewportSmooth } from "@/lib/motion";
 
 // Según itinerario: Viernes 20 y Sábado 21 Feb 2026
 const VIERNES = [
@@ -48,10 +49,10 @@ function DayBlock({
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 24 }}
+      initial={{ opacity: 0, y: 12 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.5, delay }}
+      viewport={viewportSmooth}
+      transition={{ duration: 0.4, ease: "easeOut", delay }}
       className="glass-card rounded-2xl p-5 sm:p-6 border border-white/20 hover:border-amber-400/30 hover:shadow-[0_0_30px_rgba(251,191,36,0.08)] transition-all duration-300"
     >
       <div className="flex items-center gap-2 mb-4">
@@ -93,9 +94,10 @@ export default function Itinerary() {
       <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 via-transparent to-red-500/5" />
       <div className="relative z-10 max-w-4xl mx-auto">
         <motion.h2
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 12 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          viewport={viewportSmooth}
+          transition={{ duration: 0.4, ease: "easeOut" }}
           className="font-display text-3xl sm:text-4xl md:text-5xl text-center mb-4 text-white"
         >
           ITINERARIO <span className="text-amber-400">VIERNES Y SÁBADO</span>
@@ -103,7 +105,8 @@ export default function Itinerary() {
         <motion.p
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
+          viewport={viewportSmooth}
+          transition={{ duration: 0.3 }}
           className="text-center text-white/60 font-body text-sm mb-12"
         >
           20-22 Febrero 2026 · Lomas de Mantagua

@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { viewportSmooth } from "@/lib/motion";
 
 const YOUTUBE_EMBED = "https://www.youtube.com/embed/3silveuYpko";
 
@@ -24,10 +25,10 @@ export default function VideoSection() {
 
       <div className="relative z-10 max-w-6xl mx-auto">
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 12 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
+          viewport={viewportSmooth}
+          transition={{ duration: 0.4, ease: "easeOut" }}
           className="grid lg:grid-cols-[1fr,1fr] gap-10 lg:gap-14 items-center"
         >
           {/* Video a la izquierda */}
@@ -50,10 +51,10 @@ export default function VideoSection() {
           {/* Mensaje REAL HASTA LA MUERTE: mitad rojo, mitad blanco */}
           <div className="order-1 lg:order-2 flex flex-col justify-center items-center lg:items-start text-center lg:text-left">
             <motion.p
-              initial={{ opacity: 0, x: -20 }}
+              initial={{ opacity: 0, x: -12 }}
               whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2, duration: 0.5 }}
+              viewport={viewportSmooth}
+              transition={{ delay: 0.1, duration: 0.4, ease: "easeOut" }}
               className="font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-tight tracking-tight"
             >
               <span
@@ -71,10 +72,10 @@ export default function VideoSection() {
               </span>
             </motion.p>
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.98 }}
               whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.4, duration: 0.4 }}
+              viewport={viewportSmooth}
+              transition={{ delay: 0.1, duration: 0.4, ease: "easeOut" }}
               className="mt-4 h-1 w-24 rounded-full bg-gradient-to-r from-red-500 to-white"
             />
           </div>
