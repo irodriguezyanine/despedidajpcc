@@ -40,6 +40,7 @@ Para que los puntajes del Beer Pong y los votos de la encuesta se guarden entre 
 5. Pega el contenido del archivo SQL y haz clic en **Run** (o Ctrl+Enter)
 
 - Solo encuesta: `supabase-encuesta-solo.sql` (si beerpong ya está configurado)
+- Múltiples intentos por jugador: `supabase-beerpong-intentos.sql` (Rodri intento 2, intento 3...)
 - Borrar Rodri: `supabase-borrar-rodri.sql`
 
 Sin Supabase configurado, los datos se guardan solo en el navegador (localStorage).

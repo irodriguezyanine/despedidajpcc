@@ -2,13 +2,14 @@
 -- (Dashboard > SQL Editor > New query)
 
 -- Tabla para la tabla de puntajes del Beer Pong (compartida entre todos los dispositivos)
+-- client_id: id del participante (permite múltiples intentos: Rodri intento 2, 3...)
 CREATE TABLE IF NOT EXISTS beerpong_leaderboard (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   name_lower TEXT NOT NULL,
   score INTEGER NOT NULL DEFAULT 0,
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(name_lower)
+  updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 -- Permitir lectura y escritura pública (para la API sin autenticación)

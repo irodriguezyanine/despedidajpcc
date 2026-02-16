@@ -17,7 +17,7 @@ export async function GET() {
     const supabase = createSupabaseClient();
     const { data, error } = await supabase
       .from("beerpong_leaderboard")
-      .select("id, name, score")
+      .select("client_id, name, score")
       .order("score", { ascending: false });
 
     if (error) {
@@ -26,7 +26,7 @@ export async function GET() {
     }
 
     const participants: Participant[] = (data ?? []).map((row) => ({
-      id: row.id,
+      id: row.client_id ?? row.id,
       name: row.name,
       score: row.score,
     }));
@@ -38,7 +38,7 @@ export async function GET() {
   }
 }
 
-// POST: Guardar/actualizar puntajes (merge: por nombre, se guarda el mejor puntaje)
+// POST: Guardar cada intento por separado (Rodri intento 2, intento 3...)
 export async function POST(request: Request) {
   if (!hasSupabaseConfig()) {
     return NextResponse.json({ data: [], useLocalStorage: true }, { status: 200 });
@@ -52,53 +52,58 @@ export async function POST(request: Request) {
       const supabase = createSupabaseClient();
       const { data } = await supabase
         .from("beerpong_leaderboard")
-        .select("id, name, score")
+        .select("client_id, name, score")
         .order("score", { ascending: false });
-      return NextResponse.json({ data: (data ?? []).map((r) => ({ id: r.id, name: r.name, score: r.score })) });
-    }
-
-    // Por cada nombre, tomar el mejor puntaje del cliente
-    const bestByName = new Map<string, { name: string; score: number }>();
-    for (const p of clientData) {
-      const name = String(p?.name ?? "").trim();
-      if (!name) continue;
-      const score = Math.max(0, Number(p?.score ?? 0));
-      const existing = bestByName.get(name.toLowerCase());
-      if (!existing || score > existing.score) {
-        bestByName.set(name.toLowerCase(), { name, score });
-      }
+      return NextResponse.json({
+        data: (data ?? []).map((r) => ({
+          id: r.client_id ?? r.id,
+          name: r.name,
+          score: r.score,
+        })),
+      });
     }
 
     const supabase = createSupabaseClient();
 
-    const entries = Array.from(bestByName.values());
-    for (const { name, score } of entries) {
+    // Guardar cada participante/intento por separado (no sumar puntajes, cada intento es una fila)
+    for (const p of clientData) {
+      const clientId = String(p?.id ?? "").trim();
+      const name = String(p?.name ?? "").trim();
+      if (!clientId || !name) continue;
+      const score = Math.max(0, Number(p?.score ?? 0));
       const nameLower = name.toLowerCase();
+
       const { data: existing } = await supabase
         .from("beerpong_leaderboard")
-        .select("id, score")
-        .eq("name_lower", nameLower)
+        .select("id")
+        .eq("client_id", clientId)
         .maybeSingle();
 
+      const row = {
+        client_id: clientId,
+        name,
+        name_lower: nameLower,
+        score,
+        updated_at: new Date().toISOString(),
+      };
+
       if (existing) {
-        if (score > existing.score) {
-          await supabase
-            .from("beerpong_leaderboard")
-            .update({ score, name, name_lower: nameLower, updated_at: new Date().toISOString() })
-            .eq("id", existing.id);
-        }
+        await supabase
+          .from("beerpong_leaderboard")
+          .update(row)
+          .eq("id", existing.id);
       } else {
-        await supabase.from("beerpong_leaderboard").insert({ name, name_lower: nameLower, score });
+        await supabase.from("beerpong_leaderboard").insert(row);
       }
     }
 
     const { data: updated } = await supabase
       .from("beerpong_leaderboard")
-      .select("id, name, score")
+      .select("client_id, name, score")
       .order("score", { ascending: false });
 
     const participants: Participant[] = (updated ?? []).map((r) => ({
-      id: r.id,
+      id: r.client_id ?? r.id,
       name: r.name,
       score: r.score,
     }));

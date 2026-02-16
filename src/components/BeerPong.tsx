@@ -287,36 +287,21 @@ export default function BeerPong() {
   const addParticipant = useCallback(() => {
     const name = newName.trim();
     if (!name) return;
-    const existing = participants.find(
-      (p) => p.name.toLowerCase() === name.toLowerCase()
-    );
-    if (existing) {
-      setCurrentPlayerId(existing.id);
-      setNewName("");
-      return;
-    }
     const id = generateId();
     const newEntry = { id, name, score: 0 };
     setParticipants((prev) => [...prev, newEntry]);
     setCurrentPlayerId(id);
     setNewName("");
-  }, [newName, participants]);
+  }, [newName]);
 
-  // Pasar a etapa 2: registrar jugador (si hace falta), reiniciar partida y mostrar cancha
+  // Pasar a etapa 2: siempre crear nuevo participante (nuevo intento si repite nombre)
   const startGame = useCallback(() => {
     const name = newName.trim();
     if (!name) return;
-    const existing = participants.find(
-      (p) => p.name.toLowerCase() === name.toLowerCase()
-    );
-    if (existing) {
-      setCurrentPlayerId(existing.id);
-    } else {
-      const id = generateId();
-      const newEntry = { id, name, score: 0 };
-      setParticipants((prev) => [...prev, newEntry]);
-      setCurrentPlayerId(id);
-    }
+    const id = generateId();
+    const newEntry = { id, name, score: 0 };
+    setParticipants((prev) => [...prev, newEntry]);
+    setCurrentPlayerId(id);
     setNewName("");
     setStage(2);
     setLives(2);
