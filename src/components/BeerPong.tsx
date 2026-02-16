@@ -1191,11 +1191,6 @@ export default function BeerPong() {
                       <td className="py-2 pr-3 text-white/70">{idx + 1}</td>
                       <td className="py-2 pr-3 text-white font-medium">
                         {getDisplayName(p.name, idx)}
-                        {p.id === currentPlayerId && (
-                          <span className="ml-2 text-xs text-amber-400">
-                            (lanza)
-                          </span>
-                        )}
                       </td>
                       <td className="py-2 text-right text-amber-400 font-mono font-bold">
                         {p.score}
