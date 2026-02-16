@@ -1,4 +1,4 @@
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 
 const SCENE_W = 360;
 const SCENE_H = 500;
@@ -39,7 +39,8 @@ export default class PenaltyScene extends Phaser.Scene {
   preload() {
     // Crear textura de mira (crosshair)
     const crosshairSize = 24;
-    const chGraphics = this.make.graphics({ x: 0, y: 0, add: false });
+    const chGraphics = this.add.graphics();
+    chGraphics.setVisible(false);
     chGraphics.lineStyle(2, 0xef4444, 1);
     chGraphics.strokeCircle(crosshairSize / 2, crosshairSize / 2, 8);
     chGraphics.lineBetween(crosshairSize / 2, 2, crosshairSize / 2, crosshairSize / 2 - 6);
@@ -52,7 +53,8 @@ export default class PenaltyScene extends Phaser.Scene {
     chGraphics.destroy();
 
     // Crear textura de pelota programáticamente
-    const ballGraphics = this.make.graphics({ x: 0, y: 0, add: false });
+    const ballGraphics = this.add.graphics();
+    ballGraphics.setVisible(false);
     ballGraphics.fillStyle(0xf5f5dc, 1); // beige/blanco
     ballGraphics.fillCircle(BALL_R, BALL_R, BALL_R - 2);
     ballGraphics.lineStyle(2, 0x1e293b);
@@ -66,7 +68,8 @@ export default class PenaltyScene extends Phaser.Scene {
     // Crear textura del portero (figura estilizada)
     const kw = 56;
     const kh = 70;
-    const keeperGraphics = this.make.graphics({ x: 0, y: 0, add: false });
+    const keeperGraphics = this.add.graphics();
+    keeperGraphics.setVisible(false);
     keeperGraphics.fillStyle(0x1e293b, 1);
     keeperGraphics.fillRect(kw / 2 - 6, 20, 12, 35);
     keeperGraphics.fillRect(kw / 2 - 18, 22, 10, 28);
