@@ -30,8 +30,8 @@ const BALL_START_X = CANVAS_W / 2;
 const BALL_START_Y = CANVAS_H - 85;
 
 const TOTAL_PENALTIES = 5;
-const KEEPER_COVERAGE = 0.55;
-const KEEPER_DIVE_DELAY = 0.12;
+const KEEPER_DIVE_DELAY = 0.24;
+const MIN_POWER = 0.35;
 
 type GamePhase = "aim" | "charging" | "flying" | "scored" | "saved" | "finished";
 
@@ -57,25 +57,25 @@ function getKeeperHitbox(
 ): { x: number; y: number; w: number; h: number; handL: { x: number; y: number; r: number }; handR: { x: number; y: number; r: number } } {
   const goalCenter = GOAL_LEFT + GOAL_WIDTH / 2;
   const goalBottom = GOAL_TOP + GOAL_HEIGHT;
-  const keeperY = goalBottom - 35;
-  const bodyW = 50;
-  const bodyH = 40;
-  const handR = 18;
+  const keeperY = goalBottom - 30;
+  const bodyW = 38;
+  const bodyH = 28;
+  const handR = 14;
 
   const diveStart = KEEPER_DIVE_DELAY;
-  const diveDuration = 0.22;
+  const diveDuration = 0.24;
   const progress = elapsed < diveStart ? 0 : Math.min((elapsed - diveStart) / diveDuration, 1);
   const easeOut = 1 - Math.pow(1 - progress, 1.5);
 
   let centerX = goalCenter;
   if (keeperDive === "left") {
-    centerX = goalCenter - 70 * easeOut;
+    centerX = goalCenter - 60 * easeOut;
   } else if (keeperDive === "right") {
-    centerX = goalCenter + 70 * easeOut;
+    centerX = goalCenter + 60 * easeOut;
   }
 
-  const handLOffset = keeperDive === "left" ? -35 : keeperDive === "right" ? -25 : -30;
-  const handROffset = keeperDive === "left" ? 25 : keeperDive === "right" ? 35 : 30;
+  const handLOffset = keeperDive === "left" ? -28 : keeperDive === "right" ? -20 : -24;
+  const handROffset = keeperDive === "left" ? 20 : keeperDive === "right" ? 28 : 24;
 
   return {
     x: centerX - bodyW / 2,
@@ -110,6 +110,7 @@ export default function Penales() {
   const [lastResult, setLastResult] = useState<"goal" | "saved" | null>(null);
   const [keeperDiving, setKeeperDiving] = useState<"left" | "center" | "right" | null>(null);
   const [aimPoint, setAimPoint] = useState<{ x: number; y: number } | null>(null);
+  const [showInstruction, setShowInstruction] = useState(false);
 
   const gameRef = useRef({
     x: BALL_START_X,
@@ -198,9 +199,14 @@ export default function Penales() {
     requestAnimationFrame(() => requestAnimationFrame(() => setShowCanvas(true)));
   }, [stage, mounted]);
 
-  const startGame = () => {
+  const onStartClick = () => {
     const n = name.trim();
     if (!n) return;
+    setShowInstruction(true);
+  };
+
+  const startGame = () => {
+    setShowInstruction(false);
     setClientId(generateClientId());
     setScore(0);
     setAttempts(0);
@@ -216,8 +222,8 @@ export default function Penales() {
 
   const pickKeeperDirection = useCallback((): "left" | "center" | "right" => {
     const r = Math.random();
-    if (r < 0.4) return "left";
-    if (r < 0.7) return "center";
+    if (r < 0.25) return "left";
+    if (r < 0.75) return "center";
     return "right";
   }, []);
 
@@ -257,12 +263,12 @@ export default function Penales() {
         }
       }
 
-      const grassGrad = ctx.createLinearGradient(0, CANVAS_H * 0.35, 0, CANVAS_H);
+      const grassGrad = ctx.createLinearGradient(0, goalBottom, 0, CANVAS_H);
       grassGrad.addColorStop(0, "#166534");
       grassGrad.addColorStop(0.6, "#15803d");
       grassGrad.addColorStop(1, "#14532d");
       ctx.fillStyle = grassGrad;
-      ctx.fillRect(0, CANVAS_H * 0.35, CANVAS_W, CANVAS_H);
+      ctx.fillRect(0, goalBottom, CANVAS_W, CANVAS_H - goalBottom);
 
       ctx.strokeStyle = "rgba(255,255,255,0.8)";
       ctx.lineWidth = 2;
@@ -475,7 +481,7 @@ export default function Penales() {
     const inGoalY = g.y >= GOAL_TOP && g.y <= GOAL_TOP + GOAL_HEIGHT - BALL_R;
     const speed = Math.hypot(g.vx, g.vy);
 
-    if (inGoalX && inGoalY && speed < 4) {
+    if (inGoalX && inGoalY && speed < 12) {
       haptic("medium");
       setScore((s) => s + 1);
       setLastResult("goal");
@@ -621,7 +627,7 @@ export default function Penales() {
 
       const keeperDir = pickKeeperDirection();
       setKeeperDiving(keeperDir);
-      pendingShotRef.current = { targetX: target.x, targetY: target.y, power: Math.max(0.5, power) };
+      pendingShotRef.current = { targetX: target.x, targetY: target.y, power: Math.max(MIN_POWER, power) };
       setPhase("flying");
     };
 
@@ -658,12 +664,40 @@ export default function Penales() {
           Toca el arco para apuntar · Arrastra la pelota hacia abajo para patear · 5 penales
         </motion.p>
 
+        <AnimatePresence>
+          {showInstruction && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+              onClick={() => setShowInstruction(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="glass-card rounded-2xl p-6 max-w-sm border-2 border-amber-500/50 text-center"
+              >
+                <h3 className="font-display text-xl text-white mb-4">¿Cómo patear?</h3>
+                <p className="font-body text-white/90 text-sm mb-2">1. Toca el arco donde quieres meter el gol</p>
+                <p className="font-body text-white/90 text-sm mb-4">2. Arrastra la pelota hacia abajo y suelta para patear</p>
+                <p className="font-body text-white/70 text-xs mb-6">Más arrastre = más potencia</p>
+                <motion.button type="button" onClick={startGame} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} className="px-8 py-3 rounded-xl font-display text-lg text-white bg-amber-500 border border-amber-400/50 hover:bg-amber-600">
+                  ¡Jugar!
+                </motion.button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {stage === 1 && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl p-8 border-2 border-amber-500/30 text-center">
             <h3 className="font-display text-xl sm:text-2xl text-white mb-6">Iniciar partido</h3>
             <label className="block text-left text-white/80 font-body text-sm mb-2">Nombre del goleador:</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && startGame()} placeholder="Tu nombre" className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 font-body text-sm focus:outline-none focus:border-amber-400/50 mb-6" />
-            <motion.button type="button" onClick={startGame} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} className="px-8 py-4 rounded-xl font-display text-lg text-white bg-amber-500 border border-amber-400/50 hover:bg-amber-600">
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && onStartClick()} placeholder="Tu nombre" className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 font-body text-sm focus:outline-none focus:border-amber-400/50 mb-6" />
+            <motion.button type="button" onClick={onStartClick} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} className="px-8 py-4 rounded-xl font-display text-lg text-white bg-amber-500 border border-amber-400/50 hover:bg-amber-600">
               Jugar
             </motion.button>
             <button type="button" onClick={() => { setTableVisible((v) => !v); if (!tableVisible) requestAnimationFrame(() => document.getElementById("penales-tabla")?.scrollIntoView({ behavior: "smooth" })); }} className="mt-6 inline-block font-body text-sm text-amber-400 hover:text-amber-300 underline transition-colors">
@@ -700,8 +734,40 @@ export default function Penales() {
 
             <AnimatePresence mode="wait">
               {lastResult === "goal" && (
-                <motion.div key="goal" initial={{ opacity: 0, scale: 0.3 }} animate={{ opacity: 1, scale: [0.3, 1.2, 1] }} exit={{ opacity: 0 }} className="text-center mt-4">
-                  <p className="font-display text-3xl text-green-400 drop-shadow-[0_0_10px_rgba(34,197,94,0.8)]">¡GOOOL! ⚽</p>
+                <motion.div
+                  key="goal"
+                  initial={{ opacity: 0, scale: 0.2 }}
+                  animate={{
+                    opacity: 1,
+                    scale: [0.2, 1.4, 1.15],
+                    rotate: [0, -5, 5, 0],
+                  }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                  exit={{ opacity: 0, scale: 1.1 }}
+                  className="text-center mt-4"
+                >
+                  <p className="font-display text-4xl sm:text-5xl text-green-400 drop-shadow-[0_0_15px_rgba(34,197,94,0.9)]">
+                    ¡GOOOL! ⚽
+                  </p>
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="mt-2 flex justify-center gap-1"
+                  >
+                    {[...Array(12)].map((_, i) => (
+                      <motion.span
+                        key={i}
+                        initial={{ opacity: 0, scale: 0, y: 0 }}
+                        animate={{ opacity: 1, scale: 1, y: [0, -30] }}
+                        transition={{ delay: 0.3 + i * 0.03, duration: 0.4 }}
+                        className="text-2xl"
+                        style={{ filter: `hue-rotate(${i * 30}deg)` }}
+                      >
+                        🎉
+                      </motion.span>
+                    ))}
+                  </motion.div>
                 </motion.div>
               )}
               {lastResult === "saved" && (
