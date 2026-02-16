@@ -297,7 +297,7 @@ export default function VotingSection() {
               <div className="flex items-center gap-2 justify-center mb-2">
                 <Trophy className="w-6 h-6 text-amber-400" />
                 <h3 className="font-display text-xl sm:text-2xl text-white">
-                  ¿Quién es el MVP?
+                  ¿Quién será el MVP?
                 </h3>
               </div>
               <p className="text-white/60 text-sm font-body text-center mb-6">
@@ -365,7 +365,7 @@ export default function VotingSection() {
               <div className="flex items-center gap-2 justify-center mb-2">
                 <Crown className="w-6 h-6 text-neon-pink" />
                 <h3 className="font-display text-xl sm:text-2xl text-white">
-                  ¿Quién es la más perra?
+                  ¿Quién será la perrita?
                 </h3>
               </div>
               <p className="text-white/60 text-sm font-body text-center mb-6">
@@ -451,7 +451,7 @@ export default function VotingSection() {
               <div className="glass-card rounded-2xl p-6 border border-amber-500/20">
                 <h4 className="font-display text-lg text-amber-400 mb-4 flex items-center gap-2">
                   <Trophy className="w-5 h-5" />
-                  ¿Quién es el MVP?
+                  ¿Quién será el MVP?
                 </h4>
                 <div className="space-y-4">
                   {mvpResults.length === 0 ? (
@@ -476,7 +476,7 @@ export default function VotingSection() {
               <div className="glass-card rounded-2xl p-6 border border-neon-pink/20">
                 <h4 className="font-display text-lg text-neon-pink mb-4 flex items-center gap-2">
                   <Crown className="w-5 h-5" />
-                  ¿Quién es la más perra?
+                  ¿Quién será la perrita?
                 </h4>
                 <div className="space-y-4">
                   {masPerraResults.length === 0 ? (
