@@ -32,6 +32,7 @@ export default class PenaltyScene extends Phaser.Scene {
   private isCharging = false;
   private chargeStartTime = 0;
   private shotInProgress = false;
+  private lastShotPower = 0;
 
   constructor() {
     super({ key: "PenaltyScene" });
@@ -134,7 +135,7 @@ export default class PenaltyScene extends Phaser.Scene {
     this.ball.setDrag(0.98);
     this.ball.setMaxVelocity(600);
     this.ball.setDepth(10);
-    this.ball.body!.setAllowGravity(false);
+    (this.ball.body as Phaser.Physics.Arcade.Body).allowGravity = false;
 
     // Gravedad (se activa solo cuando la pelota es pateada)
     this.physics.world.gravity.y = 300;
@@ -214,6 +215,11 @@ export default class PenaltyScene extends Phaser.Scene {
         this.finishShot("goal");
         return;
       }
+      if (inGoalX && this.ball.y < GOAL_TOP + 30 && this.lastShotPower < 89) {
+        this.shotInProgress = false;
+        this.finishShot("goal");
+        return;
+      }
       if (this.ball.y > SCENE_H + 30 || this.ball.x < -30 || this.ball.x > SCENE_W + 30 || (this.ball.y > GOAL_BOTTOM + 50 && !inGoalX && speed < 8)) {
         this.shotInProgress = false;
         this.finishShot("saved");
@@ -259,8 +265,9 @@ export default class PenaltyScene extends Phaser.Scene {
 
   private shootTowardCrosshair(powerPercent: number) {
     this.ball.setPosition(BALL_START_X, BALL_START_Y);
-    this.ball.body!.setAllowGravity(true);
+    (this.ball.body as Phaser.Physics.Arcade.Body).allowGravity = true;
     this.shotInProgress = true;
+    this.lastShotPower = powerPercent;
     const targetX = this.crosshair.x;
     const targetY = this.crosshair.y;
     const dx = targetX - BALL_START_X;
@@ -301,7 +308,7 @@ export default class PenaltyScene extends Phaser.Scene {
   resetBall() {
     this.ball.setVelocity(0, 0);
     this.ball.setPosition(BALL_START_X, BALL_START_Y);
-    this.ball.body!.setAllowGravity(false);
+    (this.ball.body as Phaser.Physics.Arcade.Body).allowGravity = false;
     this.tweens.killTweensOf(this.keeper);
     const keeperCenterX = GOAL_LEFT + GOAL_WIDTH / 2;
     const keeperY = GOAL_BOTTOM;
