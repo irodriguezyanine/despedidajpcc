@@ -39,10 +39,6 @@ function saveVotes(votes: VoteRecord[]) {
   } catch {}
 }
 
-function hasVoted(email: string): boolean {
-  return loadVotes().some((v) => v.email.toLowerCase().trim() === email.toLowerCase().trim());
-}
-
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const container = {
@@ -93,11 +89,7 @@ export default function VotingSection() {
       setError("Correo inválido");
       return;
     }
-    if (hasVoted(trimmedEmail)) {
-      setError("Este correo ya votó. Solo se permite un voto por persona.");
-      return;
-    }
-
+    // Permitir cambiar el voto: si ya votó, puede continuar para reemplazar su voto
     setStage(2);
   };
 
@@ -133,7 +125,12 @@ export default function VotingSection() {
       timestamp: Date.now(),
     };
 
-    const updated = [...loadVotes(), newVote];
+    // Reemplazar voto anterior si el correo ya votó; si no, agregar nuevo
+    const trimmedEmail = email.trim().toLowerCase();
+    const existingVotes = loadVotes();
+    const updated = existingVotes
+      .filter((v) => v.email !== trimmedEmail)
+      .concat(newVote);
     saveVotes(updated);
     setVotes(updated);
     setStage(4);
@@ -223,7 +220,7 @@ export default function VotingSection() {
                 Vota en la encuesta
               </h3>
               <p className="text-white/60 text-sm font-body text-center mb-6">
-                Registra tu nombre y correo para participar
+                Registra tu nombre y correo. Si ya votaste, puedes cambiar tu voto.
               </p>
 
               <div className="space-y-4">
@@ -500,22 +497,40 @@ export default function VotingSection() {
                 </div>
               </div>
 
-              <motion.button
-                type="button"
-                onClick={() => {
-                  setStage(1);
-                  setName("");
-                  setEmail("");
-                  setMvpVote(null);
-                  setMasPerraVote(null);
-                  setError("");
-                }}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="w-full py-3 rounded-xl font-body text-sm text-white/80 bg-white/10 border border-white/20 hover:bg-white/15 hover:text-white transition-all"
-              >
-                Volver a la encuesta
-              </motion.button>
+              <div className="flex flex-col gap-2">
+                {name && (
+                  <motion.button
+                    type="button"
+                    onClick={() => {
+                      setStage(2);
+                      setMvpVote(null);
+                      setMasPerraVote(null);
+                      setError("");
+                    }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full py-3 rounded-xl font-body text-sm text-amber-400 bg-amber-500/20 border border-amber-400/30 hover:bg-amber-500/30 transition-all"
+                  >
+                    Cambiar mi voto
+                  </motion.button>
+                )}
+                <motion.button
+                  type="button"
+                  onClick={() => {
+                    setStage(1);
+                    setName("");
+                    setEmail("");
+                    setMvpVote(null);
+                    setMasPerraVote(null);
+                    setError("");
+                  }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full py-3 rounded-xl font-body text-sm text-white/80 bg-white/10 border border-white/20 hover:bg-white/15 hover:text-white transition-all"
+                >
+                  {name ? "Volver a la encuesta" : "Nueva votación"}
+                </motion.button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
