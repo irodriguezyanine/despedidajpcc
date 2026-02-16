@@ -13,8 +13,8 @@ const BALL_START_X = SCENE_W / 2;
 const BALL_START_Y = SCENE_H - 85;
 const CROSSHAIR_MARGIN = 12;
 const CHARGE_TIME_MS = 1000;
-const MIN_VELOCITY = 80;
-const MAX_VELOCITY = 350;
+const MIN_VELOCITY = 280;
+const MAX_VELOCITY = 520;
 const POWER_BAR_X = SCENE_W / 2;
 const POWER_BAR_Y = SCENE_H - 60;
 const POWER_BAR_W = 200;
@@ -31,6 +31,7 @@ export default class PenaltyScene extends Phaser.Scene {
   private powerBarFill!: Phaser.GameObjects.Graphics;
   private isCharging = false;
   private chargeStartTime = 0;
+  private shotInProgress = false;
 
   constructor() {
     super({ key: "PenaltyScene" });
@@ -124,17 +125,18 @@ export default class PenaltyScene extends Phaser.Scene {
     this.keeper.setOrigin(0.5, 1);
     this.keeper.setDepth(5);
 
-    // 3. Pelota con física Arcade
+    // 3. Pelota con física Arcade (sin gravedad cuando está en el punto penal)
     this.ball = this.physics.add.image(BALL_START_X, BALL_START_Y, "ball");
     this.ball.setCircle(BALL_R - 2);
     this.ball.setCollideWorldBounds(true);
     this.ball.setBounce(0);
     this.ball.setDamping(true);
     this.ball.setDrag(0.98);
-    this.ball.setMaxVelocity(450);
+    this.ball.setMaxVelocity(600);
     this.ball.setDepth(10);
+    this.ball.body!.setAllowGravity(false);
 
-    // Gravedad
+    // Gravedad (se activa solo cuando la pelota es pateada)
     this.physics.world.gravity.y = 300;
 
     // Círculo del punto penal (decorativo)
@@ -203,6 +205,25 @@ export default class PenaltyScene extends Phaser.Scene {
     if (v && this.ball.y < BALL_START_Y && v.y > 0) {
       this.ball.setVelocity(v.x, 0);
     }
+    if (this.shotInProgress && v) {
+      const speed = Math.hypot(v.x, v.y);
+      const inGoalX = this.ball.x >= GOAL_LEFT + BALL_R && this.ball.x <= GOAL_RIGHT - BALL_R;
+      const inGoalY = this.ball.y >= GOAL_TOP && this.ball.y <= GOAL_BOTTOM + BALL_R;
+      if (inGoalX && inGoalY && speed < 15) {
+        this.shotInProgress = false;
+        this.finishShot("goal");
+        return;
+      }
+      if (this.ball.y > SCENE_H + 30 || this.ball.x < -30 || this.ball.x > SCENE_W + 30 || (this.ball.y > GOAL_BOTTOM + 50 && !inGoalX && speed < 8)) {
+        this.shotInProgress = false;
+        this.finishShot("saved");
+      }
+    }
+  }
+
+  private finishShot(result: "goal" | "saved") {
+    this.game.events.emit("penalty-result", result);
+    this.resetBall();
   }
 
   private canShoot(): boolean {
@@ -238,6 +259,8 @@ export default class PenaltyScene extends Phaser.Scene {
 
   private shootTowardCrosshair(powerPercent: number) {
     this.ball.setPosition(BALL_START_X, BALL_START_Y);
+    this.ball.body!.setAllowGravity(true);
+    this.shotInProgress = true;
     const targetX = this.crosshair.x;
     const targetY = this.crosshair.y;
     const dx = targetX - BALL_START_X;
@@ -278,6 +301,7 @@ export default class PenaltyScene extends Phaser.Scene {
   resetBall() {
     this.ball.setVelocity(0, 0);
     this.ball.setPosition(BALL_START_X, BALL_START_Y);
+    this.ball.body!.setAllowGravity(false);
     this.tweens.killTweensOf(this.keeper);
     const keeperCenterX = GOAL_LEFT + GOAL_WIDTH / 2;
     const keeperY = GOAL_BOTTOM;

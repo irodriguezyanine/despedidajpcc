@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const REELS = 6;
 const ROWS = 7; // Más de 6 filas
-const SPIN_DURATION_MS = 2800;
+const SPIN_DURATION_MS = 4800;
 
 const SYMBOLS = [
   { id: "toma1", label: "🍻 Toma 1", emoji: "🍻" },

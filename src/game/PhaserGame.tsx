@@ -10,11 +10,17 @@ const GAME_H = 600;
 interface PhaserGameProps {
   className?: string;
   onGameReady?: (game: Phaser.Game) => void;
+  onGoal?: () => void;
+  onSaved?: () => void;
 }
 
-export default function PhaserGame({ className = "", onGameReady }: PhaserGameProps) {
+export default function PhaserGame({ className = "", onGameReady, onGoal, onSaved }: PhaserGameProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
+  const onGoalRef = useRef(onGoal);
+  const onSavedRef = useRef(onSaved);
+  onGoalRef.current = onGoal;
+  onSavedRef.current = onSaved;
 
   useEffect(() => {
     if (!containerRef.current || typeof window === "undefined") return;
@@ -44,6 +50,10 @@ export default function PhaserGame({ className = "", onGameReady }: PhaserGamePr
 
     game.events.once("ready", () => {
       onGameReady?.(game);
+      game.events.on("penalty-result", (result: "goal" | "saved") => {
+        if (result === "goal") onGoalRef.current?.();
+        else onSavedRef.current?.();
+      });
     });
 
     return () => {

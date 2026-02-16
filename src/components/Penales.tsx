@@ -8,6 +8,15 @@ const API_LEADERBOARD = "/api/penales/leaderboard";
 
 const TOTAL_PENALTIES = 5;
 
+const PhaserGame = dynamic(() => import("@/game/PhaserGame"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center bg-[#0d2818]" style={{ width: 360, height: 600 }}>
+      <p className="text-white/60 font-body text-sm">Cargando juego...</p>
+    </div>
+  ),
+});
+
 interface Goleador {
   id: string;
   name: string;
@@ -18,15 +27,6 @@ interface Goleador {
 function generateClientId(): string {
   return `penales_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 }
-
-const PhaserGame = dynamic(() => import("@/game/PhaserGame"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center bg-[#0d2818]" style={{ width: 360, height: 600 }}>
-      <p className="text-white/60 font-body text-sm">Cargando juego...</p>
-    </div>
-  ),
-});
 
 export default function Penales() {
   const [mounted, setMounted] = useState(false);
@@ -87,6 +87,15 @@ export default function Penales() {
     if (score > 0 && clientId && name) saveScore(score);
     setStage(1);
   };
+
+  const handleGoal = useCallback(() => {
+    setScore((s) => s + 1);
+    setAttempts((a) => a + 1);
+  }, []);
+
+  const handleSaved = useCallback(() => {
+    setAttempts((a) => a + 1);
+  }, []);
 
   const remainingPenalties = TOTAL_PENALTIES - attempts;
   const sortedGoleadores = [...goleadores].sort((a, b) => b.goals - a.goals);
@@ -153,7 +162,7 @@ export default function Penales() {
             </div>
 
             <div className="relative mx-auto rounded-xl border-2 border-white/20 overflow-hidden touch-none select-none" style={{ maxWidth: 360, minHeight: 600 }}>
-              <PhaserGame className="w-full" />
+              <PhaserGame className="w-full" onGoal={handleGoal} onSaved={handleSaved} />
             </div>
 
             <div className="flex gap-3 mt-6 justify-center">
