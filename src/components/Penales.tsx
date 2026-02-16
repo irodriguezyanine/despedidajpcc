@@ -5,19 +5,34 @@ import {
   useRef,
   useEffect,
   useCallback,
+  useLayoutEffect,
 } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const API_LEADERBOARD = "/api/penales/leaderboard";
 
-const GOAL_WIDTH = 320;
-const GOAL_HEIGHT = 140;
+const CANVAS_W = 340;
+const CANVAS_H = 480;
 const BALL_R = 12;
-const KEEPER_WIDTH = 80;
-const KEEPER_HEIGHT = 50;
-const PENALTY_DIST = 180;
+const PULL_SCALE = 0.10;
+const PULL_SCALE_MOBILE = 0.105;
+const MAX_SPEED = 28;
+const MIN_PULL = 22;
+const FRICTION = 0.995;
+const STOP_SPEED = 1.5;
 
-type GamePhase = "aim" | "kicking" | "scored" | "saved" | "ready";
+const GOAL_TOP = 20;
+const GOAL_HEIGHT = 120;
+const GOAL_WIDTH = 260;
+const GOAL_LEFT = (CANVAS_W - GOAL_WIDTH) / 2;
+
+const BALL_START_X = CANVAS_W / 2;
+const BALL_START_Y = CANVAS_H - 90;
+
+const TOTAL_PENALTIES = 5;
+const KEEPER_COVERAGE = 0.8; // 80% del arco
+
+type GamePhase = "aim" | "flying" | "scored" | "saved" | "ready" | "finished";
 
 interface Goleador {
   id: string;
@@ -30,6 +45,12 @@ function generateClientId(): string {
   return `penales_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 }
 
+function haptic(type: "light" | "medium" | "heavy" = "light") {
+  if (typeof navigator === "undefined" || !navigator.vibrate) return;
+  const ms = type === "heavy" ? 30 : type === "medium" ? 20 : 10;
+  navigator.vibrate(ms);
+}
+
 export default function Penales() {
   const [mounted, setMounted] = useState(false);
   const [stage, setStage] = useState<1 | 2>(1);
@@ -38,12 +59,35 @@ export default function Penales() {
   const [score, setScore] = useState(0);
   const [attempts, setAttempts] = useState(0);
   const [phase, setPhase] = useState<GamePhase>("aim");
-  const [aimPos, setAimPos] = useState({ x: GOAL_WIDTH / 2, y: GOAL_HEIGHT / 2 });
-  const [ballPos, setBallPos] = useState({ x: GOAL_WIDTH / 2, y: PENALTY_DIST + BALL_R });
-  const [keeperDiving, setKeeperDiving] = useState<"left" | "center" | "right" | null>(null);
   const [goleadores, setGoleadores] = useState<Goleador[]>([]);
   const [tableVisible, setTableVisible] = useState(false);
-  const canvasRef = useRef<HTMLDivElement>(null);
+  const [lastResult, setLastResult] = useState<"goal" | "saved" | null>(null);
+  const [keeperDiving, setKeeperDiving] = useState<"left" | "right" | null>(null);
+
+  const gameRef = useRef({
+    x: BALL_START_X,
+    y: BALL_START_Y,
+    vx: 0,
+    vy: 0,
+    lastTime: 0,
+    rafId: null as number | null,
+  });
+  const dragEndRef = useRef<{ x: number; y: number } | null>(null);
+  const pullLineRafRef = useRef<number | null>(null);
+  const ballSelectedRef = useRef(false);
+  const [pullLine, setPullLine] = useState<{
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+  } | null>(null);
+  const [ballSelected, setBallSelected] = useState(false);
+  const [showCanvas, setShowCanvas] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const canvasScaleRef = useRef(1);
+
+  const remainingPenalties = TOTAL_PENALTIES - attempts;
 
   const fetchLeaderboard = useCallback(async () => {
     try {
@@ -65,9 +109,7 @@ export default function Penales() {
           body: JSON.stringify({ clientId, name, goals }),
         });
         await fetchLeaderboard();
-      } catch {
-        // fallback local
-      }
+      } catch {}
     },
     [clientId, name, fetchLeaderboard]
   );
@@ -77,6 +119,17 @@ export default function Penales() {
     fetchLeaderboard();
   }, [fetchLeaderboard]);
 
+  useEffect(() => {
+    if (stage !== 2 || !mounted) {
+      setShowCanvas(false);
+      return;
+    }
+    const t = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setShowCanvas(true));
+    });
+    return () => cancelAnimationFrame(t);
+  }, [stage, mounted]);
+
   const startGame = () => {
     const n = name.trim();
     if (!n) return;
@@ -85,85 +138,421 @@ export default function Penales() {
     setAttempts(0);
     setStage(2);
     setPhase("aim");
+    const g = gameRef.current;
+    g.x = BALL_START_X;
+    g.y = BALL_START_Y;
+    g.vx = 0;
+    g.vy = 0;
   };
 
-  const pickKeeperDirection = useCallback((): "left" | "center" | "right" => {
-    const r = Math.random();
-    if (r < 0.35) return "left";
-    if (r < 0.65) return "center";
-    return "right";
+  const pickKeeperDirection = useCallback((): "left" | "right" => {
+    return Math.random() < 0.5 ? "left" : "right";
   }, []);
 
-  const kick = useCallback(() => {
-    if (phase !== "aim") return;
-    setPhase("kicking");
-
-    const keeperDir = pickKeeperDirection();
-    setKeeperDiving(keeperDir);
-
-    const targetX = aimPos.x;
-    const targetY = aimPos.y;
-
-    const keeperZoneLeft = (GOAL_WIDTH / 3) * 0;
-    const keeperZoneCenter = (GOAL_WIDTH / 3) * 1;
-    const keeperZoneRight = (GOAL_WIDTH / 3) * 2;
-
-    const keeperCovers = (x: number) => {
-      if (keeperDir === "left") return x < keeperZoneCenter;
-      if (keeperDir === "center") return x >= keeperZoneLeft && x < keeperZoneRight;
-      return x >= keeperZoneCenter;
+  const getCanvasPoint = useCallback((clientX: number, clientY: number) => {
+    const el = canvasRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    const scaleX = CANVAS_W / rect.width;
+    const scaleY = CANVAS_H / rect.height;
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
     };
+  }, []);
 
-    const isGoal = !keeperCovers(targetX);
+  const draw = useCallback(
+    (ctx: CanvasRenderingContext2D) => {
+      const dpr = canvasScaleRef.current;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
 
-    setAttempts((a) => a + 1);
+      const g = gameRef.current;
 
-    if (isGoal) {
-      setScore((s) => s + 1);
-      setPhase("scored");
-    } else {
-      setPhase("saved");
+      // Césped (gradiente de abajo a arriba - vista primera persona)
+      const grassGrad = ctx.createLinearGradient(0, CANVAS_H, 0, 0);
+      grassGrad.addColorStop(0, "#166534");
+      grassGrad.addColorStop(0.4, "#15803d");
+      grassGrad.addColorStop(0.7, "#134e1a");
+      grassGrad.addColorStop(1, "#0d2818");
+      ctx.fillStyle = grassGrad;
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+      // Líneas de la cancha (perspectiva)
+      ctx.strokeStyle = "rgba(255,255,255,0.6)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(20, CANVAS_H);
+      ctx.lineTo(CANVAS_W - 20, CANVAS_H);
+      ctx.stroke();
+
+      // Círculo del punto penal
+      ctx.beginPath();
+      ctx.arc(CANVAS_W / 2, BALL_START_Y + 25, 35, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // PORTERÍA (arriba)
+      const goalLeft = GOAL_LEFT;
+      const goalRight = GOAL_LEFT + GOAL_WIDTH;
+      const goalBottom = GOAL_TOP + GOAL_HEIGHT;
+      const keeperDivesLeft = keeperDiving === "left";
+
+      // Postes y travesaño (blanco)
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(goalLeft, goalBottom);
+      ctx.lineTo(goalLeft, GOAL_TOP);
+      ctx.lineTo(goalRight, GOAL_TOP);
+      ctx.lineTo(goalRight, goalBottom);
+      ctx.stroke();
+
+      // Red (patrón)
+      ctx.strokeStyle = "rgba(255,255,255,0.4)";
+      ctx.lineWidth = 1;
+      const netSpacing = 12;
+      for (let i = 0; i <= GOAL_WIDTH; i += netSpacing) {
+        ctx.beginPath();
+        ctx.moveTo(goalLeft + i, goalBottom);
+        ctx.lineTo(goalLeft + i, GOAL_TOP);
+        ctx.stroke();
+      }
+      for (let j = 0; j <= GOAL_HEIGHT; j += netSpacing) {
+        ctx.beginPath();
+        ctx.moveTo(goalLeft, goalBottom - j);
+        ctx.lineTo(goalRight, goalBottom - j);
+        ctx.stroke();
+      }
+
+      // ARQUERO (animado, estilo realista) - cubre 80% del arco
+      const keeperCoverStart = keeperDivesLeft ? goalLeft : goalRight - GOAL_WIDTH * KEEPER_COVERAGE;
+      const keeperCoverEnd = keeperDivesLeft ? goalLeft + GOAL_WIDTH * KEEPER_COVERAGE : goalRight;
+
+      const keeperCenterX = (keeperCoverStart + keeperCoverEnd) / 2;
+      const keeperY = GOAL_TOP + GOAL_HEIGHT * 0.35;
+
+      ctx.save();
+      ctx.translate(keeperCenterX, keeperY);
+      if (keeperDiving) {
+        ctx.rotate(keeperDivesLeft ? -0.15 : 0.15);
+      }
+      ctx.translate(-keeperCenterX, -keeperY);
+
+      // Cuerpo del arquero (camiseta verde/amarilla)
+      ctx.fillStyle = "#eab308";
+      ctx.strokeStyle = "#ca8a04";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(keeperCenterX, keeperY + 8, 28, 22, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Guantes
+      ctx.fillStyle = "#f59e0b";
+      ctx.beginPath();
+      ctx.ellipse(keeperCenterX - 22, keeperY - 2, 10, 8, 0, 0, Math.PI * 2);
+      ctx.ellipse(keeperCenterX + 22, keeperY - 2, 10, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Número en la espalda (1)
+      ctx.fillStyle = "#1e293b";
+      ctx.font = "bold 14px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("1", keeperCenterX, keeperY + 10);
+
+      ctx.restore();
+
+      // Línea de tiro (pull)
+      if (pullLine) {
+        const dx = pullLine.x2 - pullLine.x1;
+        const dy = pullLine.y2 - pullLine.y1;
+        const len = Math.hypot(dx, dy);
+        const speed = Math.min(len * PULL_SCALE, MAX_SPEED);
+        ctx.strokeStyle = speed > MAX_SPEED * 0.5 ? "rgba(239, 68, 68, 0.9)" : "rgba(34, 197, 94, 0.95)";
+        ctx.lineWidth = 3;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(pullLine.x1, pullLine.y1);
+        ctx.lineTo(pullLine.x2, pullLine.y2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // JUGADOR: mangas camiseta rayada blanca y roja (primera persona, abajo)
+      const sleeveTop = CANVAS_H - 75;
+      const stripeW = 6;
+      for (let arm = 0; arm < 2; arm++) {
+        const armX = arm === 0 ? 45 : CANVAS_W - 45;
+        const armW = 55;
+        const armH = 60;
+        ctx.save();
+        ctx.translate(armX, sleeveTop);
+        const numStripes = Math.ceil(armW / stripeW) + 1;
+        for (let i = 0; i < numStripes; i++) {
+          ctx.fillStyle = i % 2 === 0 ? "#ffffff" : "#dc2626";
+          ctx.fillRect(-armW / 2 + i * stripeW, 0, stripeW, armH);
+        }
+        ctx.restore();
+      }
+
+      // Pelota (fútbol: blanco con pentágonos)
+      ctx.save();
+      ctx.translate(g.x, g.y);
+      ctx.fillStyle = "#f5f5dc";
+      ctx.beginPath();
+      ctx.arc(0, 0, BALL_R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#1e293b";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+    },
+    [keeperDiving, pullLine]
+  );
+
+  const drawRef = useRef(draw);
+  useEffect(() => {
+    drawRef.current = draw;
+  }, [draw]);
+
+  useEffect(() => {
+    if (phase !== "flying" && showCanvas) {
+      const ctx = canvasRef.current?.getContext("2d");
+      if (ctx) draw(ctx);
+    }
+  }, [phase, pullLine, draw, showCanvas]);
+
+  const setCanvasRef = useCallback((el: HTMLCanvasElement | null) => {
+    (canvasRef as React.MutableRefObject<HTMLCanvasElement | null>).current = el;
+    if (!el) return;
+    const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+    canvasScaleRef.current = dpr;
+    el.width = CANVAS_W * dpr;
+    el.height = CANVAS_H * dpr;
+    requestAnimationFrame(() => {
+      const ctx = el.getContext("2d");
+      if (ctx) drawRef.current(ctx);
+    });
+  }, []);
+
+  const gameLoop = useCallback(() => {
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx) return;
+
+    const g = gameRef.current;
+    const now = performance.now();
+    const dt = Math.min((now - g.lastTime) / 1000, 0.05);
+    g.lastTime = now;
+
+    g.x += g.vx * dt * 60;
+    g.y += g.vy * dt * 60;
+    g.vx *= FRICTION;
+    g.vy *= FRICTION;
+
+    const speed = Math.hypot(g.vx, g.vy);
+
+    // ¿La pelota entró al arco?
+    const inGoalX = g.x >= GOAL_LEFT + BALL_R && g.x <= GOAL_LEFT + GOAL_WIDTH - BALL_R;
+    const inGoalY = g.y >= GOAL_TOP && g.y <= GOAL_TOP + GOAL_HEIGHT - BALL_R;
+
+    if (inGoalX && inGoalY && speed < STOP_SPEED * 2) {
+      const keeperDivesLeft = keeperDiving === "left";
+      const isGoal = keeperDivesLeft
+        ? g.x >= GOAL_LEFT + GOAL_WIDTH * KEEPER_COVERAGE
+        : g.x <= GOAL_LEFT + GOAL_WIDTH * (1 - KEEPER_COVERAGE);
+
+      if (isGoal) {
+        haptic("medium");
+        setScore((s) => s + 1);
+        setLastResult("goal");
+        setPhase("scored");
+      } else {
+        haptic("light");
+        setLastResult("saved");
+        setPhase("saved");
+      }
+
+      setAttempts((a) => a + 1);
+      g.vx = 0;
+      g.vy = 0;
+      g.x = BALL_START_X;
+      g.y = BALL_START_Y;
+      if (g.rafId != null) cancelAnimationFrame(g.rafId);
+      g.rafId = null;
+      setKeeperDiving(null);
+
+      const nextAttempts = attempts + 1;
+      if (nextAttempts >= TOTAL_PENALTIES) {
+        setPhase("finished");
+      } else {
+        setTimeout(() => {
+          setPhase("aim");
+          setLastResult(null);
+        }, 1800);
+      }
+      draw(ctx);
+      return;
     }
 
-    setBallPos({ x: targetX, y: targetY });
-
-    setTimeout(() => {
-      setPhase("ready");
+    if (speed < STOP_SPEED) {
+      setLastResult("saved");
+      setPhase("saved");
+      setAttempts((a) => a + 1);
+      haptic("light");
+      g.vx = 0;
+      g.vy = 0;
+      g.x = BALL_START_X;
+      g.y = BALL_START_Y;
+      if (g.rafId != null) cancelAnimationFrame(g.rafId);
+      g.rafId = null;
       setKeeperDiving(null);
-      setBallPos({ x: GOAL_WIDTH / 2, y: PENALTY_DIST + BALL_R });
-      setAimPos({ x: GOAL_WIDTH / 2, y: GOAL_HEIGHT / 2 });
-    }, 1800);
-  }, [phase, aimPos, pickKeeperDirection]);
 
-  const handleAimClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (phase !== "aim") return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const relY = e.clientY - rect.top;
-    const goalTop = rect.height - GOAL_HEIGHT;
-    if (relY < goalTop) return;
-    const goalY = relY - goalTop;
-    const x = ((e.clientX - rect.left) / rect.width) * GOAL_WIDTH;
-    setAimPos({
-      x: Math.max(BALL_R, Math.min(GOAL_WIDTH - BALL_R, x)),
-      y: Math.max(BALL_R, Math.min(GOAL_HEIGHT - BALL_R, goalY)),
-    });
-  };
+      const nextAttempts = attempts + 1;
+      if (nextAttempts >= TOTAL_PENALTIES) {
+        setPhase("finished");
+      } else {
+        setTimeout(() => {
+          setPhase("aim");
+          setLastResult(null);
+        }, 1800);
+      }
+      draw(ctx);
+      return;
+    }
 
-  const handleAimTouch = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (phase !== "aim") return;
-    e.preventDefault();
-    const rect = e.currentTarget.getBoundingClientRect();
-    const t = e.touches[0];
-    const relY = t.clientY - rect.top;
-    const goalTop = rect.height - GOAL_HEIGHT;
-    if (relY < goalTop) return;
-    const goalY = relY - goalTop;
-    const x = ((t.clientX - rect.left) / rect.width) * GOAL_WIDTH;
-    setAimPos({
-      x: Math.max(BALL_R, Math.min(GOAL_WIDTH - BALL_R, x)),
-      y: Math.max(BALL_R, Math.min(GOAL_HEIGHT - BALL_R, goalY)),
-    });
-  };
+    if (g.x < -BALL_R || g.x > CANVAS_W + BALL_R || g.y < -BALL_R || g.y > CANVAS_H + BALL_R) {
+      setLastResult("saved");
+      setPhase("saved");
+      setAttempts((a) => a + 1);
+      haptic("light");
+      g.vx = 0;
+      g.vy = 0;
+      g.x = BALL_START_X;
+      g.y = BALL_START_Y;
+      if (g.rafId != null) cancelAnimationFrame(g.rafId);
+      g.rafId = null;
+      setKeeperDiving(null);
+
+      const nextAttempts = attempts + 1;
+      if (nextAttempts >= TOTAL_PENALTIES) {
+        setPhase("finished");
+      } else {
+        setTimeout(() => {
+          setPhase("aim");
+          setLastResult(null);
+        }, 1800);
+      }
+      draw(ctx);
+      return;
+    }
+
+    draw(ctx);
+    gameRef.current.rafId = requestAnimationFrame(gameLoop);
+  }, [draw, attempts, keeperDiving]);
+
+  useEffect(() => {
+    if (phase !== "flying") return;
+    gameRef.current.lastTime = performance.now();
+    gameRef.current.rafId = requestAnimationFrame(gameLoop);
+    return () => {
+      if (gameRef.current.rafId != null)
+        cancelAnimationFrame(gameRef.current.rafId);
+    };
+  }, [phase, gameLoop]);
+
+  const BALL_CLICK_RADIUS = 35;
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (stage !== 2 || phase !== "aim" || attempts >= TOTAL_PENALTIES || ballSelected) return;
+      const p = getCanvasPoint(e.clientX, e.clientY);
+      if (!p) return;
+      const g = gameRef.current;
+      const dist = Math.hypot(p.x - g.x, p.y - g.y);
+      if (dist <= BALL_CLICK_RADIUS) {
+        e.preventDefault();
+        ballSelectedRef.current = true;
+        setBallSelected(true);
+        dragEndRef.current = p;
+        setPullLine({ x1: g.x, y1: g.y, x2: p.x, y2: p.y });
+      }
+    },
+    [stage, phase, attempts, ballSelected, getCanvasPoint]
+  );
+
+  useLayoutEffect(() => {
+    if (stage !== 2 || !showCanvas) return;
+    const el = canvasRef.current;
+    if (!el) return;
+
+    const getPoint = (clientX: number, clientY: number) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return null;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = CANVAS_W / rect.width;
+      const scaleY = CANVAS_H / rect.height;
+      return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY,
+      };
+    };
+
+    const onMove = (e: PointerEvent) => {
+      if (!ballSelectedRef.current) return;
+      const p = getPoint(e.clientX, e.clientY);
+      if (!p) return;
+      dragEndRef.current = p;
+      if (pullLineRafRef.current != null) cancelAnimationFrame(pullLineRafRef.current);
+      pullLineRafRef.current = requestAnimationFrame(() => {
+        const g = gameRef.current;
+        const end = dragEndRef.current;
+        if (end) setPullLine({ x1: g.x, y1: g.y, x2: end.x, y2: end.y });
+        pullLineRafRef.current = null;
+      });
+    };
+
+    const onUp = (e: PointerEvent) => {
+      if (!ballSelectedRef.current) return;
+      ballSelectedRef.current = false;
+      setBallSelected(false);
+      setPullLine(null);
+      dragEndRef.current = null;
+
+      const p = getPoint(e.clientX, e.clientY);
+      if (!p) return;
+
+      const g = gameRef.current;
+      const dx = g.x - p.x;
+      const dy = g.y - p.y;
+      const len = Math.hypot(dx, dy);
+
+      if (len < MIN_PULL) return;
+
+      haptic("light");
+
+      const keeperDir = pickKeeperDirection();
+      setKeeperDiving(keeperDir);
+
+      const pullScale = e.pointerType === "touch" ? PULL_SCALE_MOBILE : PULL_SCALE;
+      const speed = Math.min(len * pullScale, MAX_SPEED);
+      g.vx = (dx / len) * speed;
+      g.vy = (dy / len) * speed;
+
+      setLastResult(null);
+      setPhase("flying");
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [stage, showCanvas, pickKeeperDirection]);
 
   const exitToStage1 = () => {
     if (score > 0 && clientId && name) saveScore(score);
@@ -202,7 +591,7 @@ export default function Penales() {
           viewport={{ once: true }}
           className="text-center text-white/70 font-body text-sm mb-8"
         >
-          Tira penales contra el arquero · Ranking de goleadores
+          Arrastra hacia abajo para patear · 5 penales · Ranking de goleadores
         </motion.p>
 
         {stage === 1 && (
@@ -260,137 +649,72 @@ export default function Penales() {
           >
             <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
               <span className="font-mono text-white/80 text-sm">
-                Goles: <span className="text-amber-400 font-bold">{score}</span> / {attempts}
+                Goles: <span className="text-amber-400 font-bold">{score}</span> / {attempts} · Penales: {remainingPenalties}
               </span>
-              <span className="font-body text-sm text-white/80">
-                {name}
-              </span>
+              <span className="font-body text-sm text-white/80">{name}</span>
             </div>
 
-            {/* Cancha de penales */}
             <div
-              ref={canvasRef}
-              className="relative mx-auto rounded-xl overflow-hidden touch-none select-none border-2 border-white/20"
-              style={{
-                width: GOAL_WIDTH,
-                height: PENALTY_DIST + GOAL_HEIGHT + 40,
-                maxWidth: "100%",
-              }}
+              ref={containerRef}
+              className="relative mx-auto rounded-xl border-2 border-white/20 overflow-hidden touch-none select-none"
+              style={{ maxWidth: CANVAS_W }}
             >
-              {/* Césped */}
-              <div
-                className="absolute inset-0 cursor-crosshair"
-                style={{
-                  background: "linear-gradient(to bottom, #0d2818 0%, #134e1a 40%, #166534 100%)",
-                }}
-                onClick={handleAimClick}
-                onTouchMove={handleAimTouch}
-                onTouchStart={handleAimTouch}
-              >
-                {/* Líneas de la cancha */}
-                <div className="absolute bottom-0 left-0 right-0 h-2 bg-white/30" />
+              {!showCanvas ? (
                 <div
-                  className="absolute left-1/2 -translate-x-1/2 w-16 h-16 rounded-full border-2 border-white/30 -bottom-8"
-                  style={{ bottom: GOAL_HEIGHT - 20 }}
+                  className="block bg-[#0d2818]"
+                  style={{ width: CANVAS_W, height: CANVAS_H }}
                 />
-              </div>
-
-              {/* Arco */}
-              <div
-                className="absolute bottom-0 left-1/2 -translate-x-1/2 border-4 border-white rounded-t-lg"
-                style={{
-                  width: GOAL_WIDTH + 16,
-                  height: GOAL_HEIGHT + 8,
-                  marginBottom: -4,
-                }}
-              >
-                <div
-                  className="absolute inset-2 rounded-t border-2 border-white/60 bg-black/30"
-                  style={{ top: 4 }}
-                />
-              </div>
-
-              {/* Punto de mira (solo en aim) */}
-              {phase === "aim" && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute w-8 h-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber-400 bg-amber-400/30 pointer-events-none"
+              ) : (
+                <canvas
+                  ref={setCanvasRef}
+                  className="block w-full h-auto"
                   style={{
-                    left: aimPos.x,
-                    bottom: GOAL_HEIGHT - aimPos.y,
+                    width: CANVAS_W,
+                    height: CANVAS_H,
+                    maxWidth: "100%",
+                    touchAction: "none",
+                    cursor: "crosshair",
                   }}
+                  onPointerDown={handlePointerDown}
                 />
               )}
 
-              {/* Pelota */}
-              <motion.div
-                animate={{
-                  left: ballPos.x - BALL_R,
-                  bottom: phase === "kicking" || phase === "scored" || phase === "saved"
-                    ? GOAL_HEIGHT - ballPos.y - BALL_R
-                    : PENALTY_DIST - BALL_R,
-                }}
-                transition={{
-                  duration: phase === "kicking" || phase === "scored" || phase === "saved" ? 0.4 : 0.2,
-                  ease: "easeOut",
-                }}
-                className="absolute w-10 h-10 rounded-full bg-white border-2 border-slate-300 shadow-lg pointer-events-none flex items-center justify-center"
-                style={{ width: BALL_R * 2, height: BALL_R * 2 }}
-              >
-                <div className="w-2 h-2 rounded-full bg-slate-500" />
-              </motion.div>
-
-              {/* Arquero */}
-              <motion.div
-                animate={{
-                  left: keeperDiving === "left"
-                    ? 10
-                    : keeperDiving === "right"
-                    ? GOAL_WIDTH - KEEPER_WIDTH - 10
-                    : GOAL_WIDTH / 2 - KEEPER_WIDTH / 2,
-                  scaleX: keeperDiving === "right" ? -1 : 1,
-                }}
-                transition={{
-                  duration: 0.3,
-                  ease: "easeOut",
-                }}
-                className="absolute bottom-2 w-20 h-12 flex items-center justify-center pointer-events-none"
-                style={{ bottom: 8 }}
-              >
-                <div className="w-full h-full rounded-lg bg-yellow-400 border-2 border-amber-600 flex items-center justify-center shadow-lg">
-                  <span className="text-lg">🧤</span>
+              {(phase === "finished" || (phase === "scored" || phase === "saved") && attempts >= TOTAL_PENALTIES) && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/85 rounded-xl">
+                  <div className="text-center p-6">
+                    <p className="font-display text-2xl text-amber-400 mb-2">
+                      Final: {score} goles de {TOTAL_PENALTIES}
+                    </p>
+                    <div className="flex gap-3 justify-center mt-6">
+                      <motion.button
+                        onClick={exitToStage1}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="px-6 py-3 rounded-xl font-display text-base text-white bg-amber-500 border border-amber-400/50"
+                      >
+                        Guardar y salir
+                      </motion.button>
+                    </div>
+                  </div>
                 </div>
-              </motion.div>
+              )}
             </div>
 
             <AnimatePresence mode="wait">
-              {phase === "scored" && (
+              {lastResult === "goal" && (
                 <motion.div
-                  key="scored"
+                  key="goal"
                   initial={{ opacity: 0, scale: 0.3 }}
-                  animate={{
-                    opacity: 1,
-                    scale: [0.3, 1.2, 1],
-                    transition: { duration: 0.5, ease: "easeOut" },
-                  }}
-                  exit={{ opacity: 0, scale: 1.1 }}
+                  animate={{ opacity: 1, scale: [0.3, 1.2, 1] }}
+                  exit={{ opacity: 0 }}
                   className="text-center mt-4"
                 >
-                  <p className="font-display text-3xl sm:text-4xl text-green-400 drop-shadow-[0_0_10px_rgba(34,197,94,0.8)] animate-pulse">
+                  <p className="font-display text-3xl text-green-400 drop-shadow-[0_0_10px_rgba(34,197,94,0.8)]">
                     ¡GOOOL! ⚽
                   </p>
-                  <motion.p
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="text-green-300/80 text-sm mt-1"
-                  >
-                    +1 gol
-                  </motion.p>
                 </motion.div>
               )}
-              {phase === "saved" && (
+              {lastResult === "saved" && (
                 <motion.div
                   key="saved"
                   initial={{ opacity: 0, scale: 0.5 }}
@@ -404,20 +728,8 @@ export default function Penales() {
             </AnimatePresence>
 
             {phase === "aim" && (
-              <motion.button
-                type="button"
-                onClick={kick}
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.98 }}
-                className="w-full mt-4 py-4 rounded-xl font-display text-xl text-white bg-amber-500 border-2 border-amber-400/50 hover:bg-amber-600"
-              >
-                ⚽ Patear
-              </motion.button>
-            )}
-
-            {phase === "ready" && (
-              <p className="text-center text-white/60 font-body text-sm mt-4">
-                Toca el arco para apuntar y luego Patear
+              <p className="text-center text-white/50 text-xs font-body mt-3">
+                1) Toca la pelota · 2) Arrastra hacia abajo (hacia ti) · 3) Suelta para patear
               </p>
             )}
 
