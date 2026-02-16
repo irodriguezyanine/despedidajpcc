@@ -24,7 +24,8 @@ export async function GET() {
 
     if (error) {
       console.error("Error fetching encuesta votes:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      // Si la tabla no existe o hay error de Supabase, indicar fallback a localStorage
+      return NextResponse.json({ data: [], useLocalStorage: true });
     }
 
     const votes: VoteRecord[] = (data ?? []).map((row) => ({
@@ -38,7 +39,7 @@ export async function GET() {
     return NextResponse.json({ data: votes });
   } catch (err) {
     console.error("Encuesta GET error:", err);
-    return NextResponse.json({ error: "Error al cargar votos" }, { status: 500 });
+    return NextResponse.json({ data: [], useLocalStorage: true });
   }
 }
 
@@ -103,6 +104,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ data: votes });
   } catch (err) {
     console.error("Encuesta POST error:", err);
-    return NextResponse.json({ error: "Error al guardar voto" }, { status: 500 });
+    return NextResponse.json({ error: "Error al guardar voto", useLocalStorage: true });
   }
 }

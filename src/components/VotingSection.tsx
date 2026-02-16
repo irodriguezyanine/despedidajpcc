@@ -44,9 +44,16 @@ async function fetchVotes(): Promise<{ data: VoteRecord[]; useLocalStorage?: boo
   try {
     const res = await fetch(API_VOTES);
     const json = await res.json();
-    return { data: Array.isArray(json?.data) ? json.data : [], useLocalStorage: json?.useLocalStorage };
+    // Si la API falla (500, tabla no existe, etc.), usar localStorage
+    if (!res.ok || json?.error) {
+      return { data: loadVotesLocal(), useLocalStorage: true };
+    }
+    return {
+      data: Array.isArray(json?.data) ? json.data : [],
+      useLocalStorage: json?.useLocalStorage,
+    };
   } catch {
-    return { data: [], useLocalStorage: true };
+    return { data: loadVotesLocal(), useLocalStorage: true };
   }
 }
 
@@ -97,13 +104,9 @@ export default function VotingSection() {
   const [useLocalStorageOnly, setUseLocalStorageOnly] = useState(true);
 
   const refreshVotes = useCallback(async () => {
-    const { data: apiData, useLocalStorage } = await fetchVotes();
+    const { data, useLocalStorage } = await fetchVotes();
     setUseLocalStorageOnly(!!useLocalStorage);
-    if (!useLocalStorage && apiData) {
-      setVotes(apiData);
-      return;
-    }
-    setVotes(loadVotesLocal());
+    setVotes(Array.isArray(data) ? data : loadVotesLocal());
   }, []);
 
   useEffect(() => {
@@ -173,8 +176,11 @@ export default function VotingSection() {
       setVotes(updated);
     } else {
       const updated = await saveVoteToServer(newVote);
-      if (updated) setVotes(updated);
-      else {
+      if (updated) {
+        setVotes(updated);
+      } else {
+        // API falló: guardar en localStorage y mostrar
+        setUseLocalStorageOnly(true);
         const fallback = loadVotesLocal()
           .filter((v) => v.email !== newVote.email)
           .concat(newVote);
