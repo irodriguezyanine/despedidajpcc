@@ -70,6 +70,32 @@ export interface Participant {
   id: string;
   name: string;
   score: number;
+  playedAt?: string;
+}
+
+const SANTIAGO_TZ = "America/Santiago";
+
+function formatPlayedAt(iso?: string): string {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    const fmt = new Intl.DateTimeFormat("es-CL", {
+      timeZone: SANTIAGO_TZ,
+      hour: "2-digit",
+      minute: "2-digit",
+      day: "2-digit",
+      month: "2-digit",
+      hour12: false,
+    });
+    const parts = fmt.formatToParts(d);
+    const hour = parts.find((p) => p.type === "hour")?.value ?? "—";
+    const minute = parts.find((p) => p.type === "minute")?.value ?? "—";
+    const day = parts.find((p) => p.type === "day")?.value ?? "—";
+    const month = parts.find((p) => p.type === "month")?.value ?? "—";
+    return `${hour}:${minute} ${day}/${month}`;
+  } catch {
+    return "—";
+  }
 }
 
 function generateId() {
@@ -288,7 +314,7 @@ export default function BeerPong() {
     const name = newName.trim();
     if (!name) return;
     const id = generateId();
-    const newEntry = { id, name, score: 0 };
+    const newEntry: Participant = { id, name, score: 0, playedAt: new Date().toISOString() };
     setParticipants((prev) => [...prev, newEntry]);
     setCurrentPlayerId(id);
     setNewName("");
@@ -299,7 +325,7 @@ export default function BeerPong() {
     const name = newName.trim();
     if (!name) return;
     const id = generateId();
-    const newEntry = { id, name, score: 0 };
+    const newEntry: Participant = { id, name, score: 0, playedAt: new Date().toISOString() };
     setParticipants((prev) => [...prev, newEntry]);
     setCurrentPlayerId(id);
     setNewName("");
@@ -611,7 +637,7 @@ export default function BeerPong() {
           setCupsHit(cupsHitRef.current);
           const newParticipants = curPlayer
             ? participantsRef.current.map((p) =>
-                p.id === curPlayer ? { ...p, score: p.score + 1 } : p
+                p.id === curPlayer ? { ...p, score: p.score + 1, playedAt: new Date().toISOString() } : p
               )
             : participantsRef.current;
           participantsRef.current = newParticipants;
@@ -821,6 +847,7 @@ export default function BeerPong() {
         id: generateId(),
         name: currentPlayer.name,
         score: 0,
+        playedAt: new Date().toISOString(),
       };
       setParticipants((prev) => [...prev, newParticipant]);
       setCurrentPlayerId(newParticipant.id);
@@ -1177,6 +1204,7 @@ export default function BeerPong() {
                   <tr className="text-white/60 border-b border-white/10">
                     <th className="py-2 pr-3">#</th>
                     <th className="py-2 pr-3">Nombre</th>
+                    <th className="py-2 pr-3 text-center">Hora</th>
                     <th className="py-2 text-right">Puntos</th>
                   </tr>
                 </thead>
@@ -1191,6 +1219,9 @@ export default function BeerPong() {
                       <td className="py-2 pr-3 text-white/70">{idx + 1}</td>
                       <td className="py-2 pr-3 text-white font-medium">
                         {getDisplayName(p.name, idx)}
+                      </td>
+                      <td className="py-2 pr-3 text-white/60 text-center font-mono text-xs">
+                        {formatPlayedAt(p.playedAt)}
                       </td>
                       <td className="py-2 text-right text-amber-400 font-mono font-bold">
                         {p.score}

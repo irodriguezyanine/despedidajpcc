@@ -5,6 +5,7 @@ export interface Participant {
   id: string;
   name: string;
   score: number;
+  playedAt?: string;
 }
 
 // GET: Obtener tabla de puntajes (compartida entre todos los dispositivos)
@@ -17,7 +18,7 @@ export async function GET() {
     const supabase = createSupabaseClient();
     const { data, error } = await supabase
       .from("beerpong_leaderboard")
-      .select("client_id, name, score")
+      .select("client_id, name, score, updated_at")
       .order("score", { ascending: false });
 
     if (error) {
@@ -29,6 +30,7 @@ export async function GET() {
       id: row.client_id,
       name: row.name,
       score: row.score,
+      playedAt: row.updated_at ?? undefined,
     }));
 
     return NextResponse.json({ data: participants });
@@ -52,13 +54,14 @@ export async function POST(request: Request) {
       const supabase = createSupabaseClient();
       const { data } = await supabase
         .from("beerpong_leaderboard")
-        .select("client_id, name, score")
+        .select("client_id, name, score, updated_at")
         .order("score", { ascending: false });
       return NextResponse.json({
         data: (data ?? []).map((r) => ({
           id: r.client_id,
           name: r.name,
           score: r.score,
+          playedAt: r.updated_at ?? undefined,
         })),
       });
     }
@@ -99,13 +102,14 @@ export async function POST(request: Request) {
 
     const { data: updated } = await supabase
       .from("beerpong_leaderboard")
-      .select("client_id, name, score")
+      .select("client_id, name, score, updated_at")
       .order("score", { ascending: false });
 
     const participants: Participant[] = (updated ?? []).map((r) => ({
       id: r.client_id,
       name: r.name,
       score: r.score,
+      playedAt: r.updated_at ?? undefined,
     }));
 
     return NextResponse.json({ data: participants });

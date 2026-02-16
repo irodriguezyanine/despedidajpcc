@@ -60,7 +60,7 @@ export default function Hero() {
         >
           <span className="inline-flex items-center gap-1.5">
             <Calendar className="w-4 h-4 text-amber-400" />
-            20 — 22 Febrero 2026
+            20 — 22 Febrero 2026 · Inicio viernes 12:00 (Santiago)
           </span>
           <span className="text-white/60">·</span>
           <span className="inline-flex items-center gap-1.5">
