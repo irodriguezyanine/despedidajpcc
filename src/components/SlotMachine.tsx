@@ -4,8 +4,9 @@ import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const REELS = 6;
-const ROWS = 7; // Más de 6 filas
-const SPIN_DURATION_MS = 4800;
+const ROWS = 7;
+const SPIN_DURATION_MS = 3000;
+const SPIN_ROTATIONS = 5;
 
 const SYMBOLS = [
   { id: "toma1", label: "🍻 Toma 1", emoji: "🍻" },
@@ -29,11 +30,12 @@ function generateReel(length: number) {
 
 export default function SlotMachine() {
   const [reels, setReels] = useState(() =>
-    Array.from({ length: REELS }, () => generateReel(ROWS * 3))
+    Array.from({ length: REELS }, () => generateReel(ROWS * 8))
   );
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<typeof SYMBOLS[0] | null>(null);
   const [showResult, setShowResult] = useState(false);
+  const [reelScrollDistance, setReelScrollDistance] = useState(56 * ROWS);
 
   const spin = useCallback(() => {
     if (spinning) return;
@@ -42,13 +44,16 @@ export default function SlotMachine() {
     setResult(null);
 
     const winner = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
-    const centerIdx = ROWS + Math.floor(ROWS / 2) - 1;
+    const reelLength = ROWS * 8;
+    const centerIdx = 2 + ROWS * SPIN_ROTATIONS;
+    const scrollDistance = 56 * (centerIdx - 2);
     const newReels = Array.from({ length: REELS }, () => {
-      const reel = generateReel(ROWS * 3);
+      const reel = generateReel(reelLength);
       reel[centerIdx] = winner;
       return reel;
     });
     setReels(newReels);
+    setReelScrollDistance(scrollDistance);
 
     const timeout = setTimeout(() => {
       setSpinning(false);
@@ -112,11 +117,11 @@ export default function SlotMachine() {
                       animate={
                         spinning
                           ? {
-                              y: [0, -56 * ROWS],
+                              y: [0, -reelScrollDistance],
                               transition: {
                                 duration: SPIN_DURATION_MS / 1000,
-                                ease: [0.25, 0.1, 0.25, 1],
-                                delay: colIdx * 0.12,
+                                ease: [0.2, 0.05, 0.2, 1],
+                                delay: colIdx * 0.08,
                               },
                             }
                           : { y: 0 }

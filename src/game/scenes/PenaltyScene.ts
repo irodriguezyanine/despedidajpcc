@@ -13,8 +13,8 @@ const BALL_START_X = SCENE_W / 2;
 const BALL_START_Y = SCENE_H - 85;
 const CROSSHAIR_MARGIN = 12;
 const CHARGE_TIME_MS = 1000;
-const MIN_VELOCITY = 280;
-const MAX_VELOCITY = 520;
+const MIN_VELOCITY = 560;
+const MAX_VELOCITY = 1040;
 const POWER_BAR_X = SCENE_W / 2;
 const POWER_BAR_Y = SCENE_H - 60;
 const POWER_BAR_W = 200;
@@ -133,7 +133,7 @@ export default class PenaltyScene extends Phaser.Scene {
     this.ball.setBounce(0);
     this.ball.setDamping(true);
     this.ball.setDrag(0.98);
-    this.ball.setMaxVelocity(600);
+    this.ball.setMaxVelocity(1200);
     this.ball.setDepth(10);
     (this.ball.body as Phaser.Physics.Arcade.Body).allowGravity = false;
 
@@ -228,8 +228,46 @@ export default class PenaltyScene extends Phaser.Scene {
   }
 
   private finishShot(result: "goal" | "saved") {
+    this.showResultAnimation(result);
     this.game.events.emit("penalty-result", result);
-    this.resetBall();
+    this.time.delayedCall(1200, () => {
+      this.resetBall();
+    });
+  }
+
+  private showResultAnimation(result: "goal" | "saved") {
+    const text = result === "goal" ? "¡GOOOL! ⚽" : "¡ATAJADA! 🧤";
+    const color = result === "goal" ? "#22c55e" : "#ef4444";
+    const resultText = this.add.text(SCENE_W / 2, SCENE_H / 2, text, {
+      fontSize: "42px",
+      fontFamily: "Arial Black, sans-serif",
+      color,
+      stroke: "#000",
+      strokeThickness: 4,
+    });
+    resultText.setOrigin(0.5);
+    resultText.setDepth(100);
+    resultText.setAlpha(0);
+    this.tweens.add({
+      targets: resultText,
+      alpha: 1,
+      scale: { from: 0.3, to: 1.2 },
+      duration: 200,
+      ease: "Back.easeOut",
+    });
+    this.tweens.add({
+      targets: resultText,
+      scale: 1,
+      duration: 100,
+      delay: 200,
+    });
+    this.tweens.add({
+      targets: resultText,
+      alpha: 0,
+      duration: 300,
+      delay: 900,
+      onComplete: () => resultText.destroy(),
+    });
   }
 
   private canShoot(): boolean {
