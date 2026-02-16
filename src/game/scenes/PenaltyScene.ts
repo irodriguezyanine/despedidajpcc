@@ -33,6 +33,7 @@ export default class PenaltyScene extends Phaser.Scene {
   private chargeStartTime = 0;
   private shotInProgress = false;
   private lastShotPower = 0;
+  private shotStartTime = 0;
 
   constructor() {
     super({ key: "PenaltyScene" });
@@ -139,7 +140,7 @@ export default class PenaltyScene extends Phaser.Scene {
     this.ball.setCollideWorldBounds(true);
     this.ball.setBounce(0);
     this.ball.setDamping(true);
-    this.ball.setDrag(0.98);
+    this.ball.setDrag(0.92);
     this.ball.setMaxVelocity(1200);
     this.ball.setDepth(10);
     (this.ball.body as Phaser.Physics.Arcade.Body).allowGravity = false;
@@ -217,7 +218,10 @@ export default class PenaltyScene extends Phaser.Scene {
       const speed = Math.hypot(v.x, v.y);
       const inGoalX = this.ball.x >= GOAL_LEFT + BALL_R && this.ball.x <= GOAL_RIGHT - BALL_R;
       const inGoalY = this.ball.y >= GOAL_TOP && this.ball.y <= GOAL_BOTTOM + BALL_R;
-      if (inGoalX && inGoalY && speed < 15) {
+      const inGoal = inGoalX && inGoalY;
+
+      // Gol: pelota dentro del arco y casi detenida
+      if (inGoal && speed < 25) {
         this.shotInProgress = false;
         this.finishShot("goal");
         return;
@@ -227,7 +231,14 @@ export default class PenaltyScene extends Phaser.Scene {
         this.finishShot("goal");
         return;
       }
-      if (this.ball.y > SCENE_H + 30 || this.ball.x < -30 || this.ball.x > SCENE_W + 30 || (this.ball.y > GOAL_BOTTOM + 50 && !inGoalX && speed < 8)) {
+
+      // Atajada: fuera de límites, pasó el arco por fuera, o pelota lenta fuera del arco
+      const outOfBounds = this.ball.y > SCENE_H + 30 || this.ball.x < -30 || this.ball.x > SCENE_W + 30;
+      const pastGoalWide = this.ball.y > GOAL_BOTTOM + 20 && !inGoalX;
+      const slowAndNotInGoal = speed < 35 && this.ball.y > GOAL_BOTTOM && !inGoal;
+      const timeout = this.time.now - this.shotStartTime > 2000;
+
+      if (outOfBounds || pastGoalWide || slowAndNotInGoal || timeout) {
         this.shotInProgress = false;
         this.finishShot("saved");
       }
@@ -237,7 +248,7 @@ export default class PenaltyScene extends Phaser.Scene {
   private finishShot(result: "goal" | "saved") {
     this.showResultAnimation(result);
     this.game.events.emit("penalty-result", result);
-    this.time.delayedCall(1200, () => {
+    this.time.delayedCall(900, () => {
       this.resetBall();
     });
   }
@@ -271,8 +282,8 @@ export default class PenaltyScene extends Phaser.Scene {
     this.tweens.add({
       targets: resultText,
       alpha: 0,
-      duration: 300,
-      delay: 900,
+      duration: 250,
+      delay: 500,
       onComplete: () => resultText.destroy(),
     });
   }
@@ -312,6 +323,7 @@ export default class PenaltyScene extends Phaser.Scene {
     this.ball.setPosition(BALL_START_X, BALL_START_Y);
     (this.ball.body as Phaser.Physics.Arcade.Body).allowGravity = true;
     this.shotInProgress = true;
+    this.shotStartTime = this.time.now;
     this.lastShotPower = powerPercent;
     const targetX = this.crosshair.x;
     const targetY = this.crosshair.y;
