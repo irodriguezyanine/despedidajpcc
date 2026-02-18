@@ -41,7 +41,7 @@ export default function Footer() {
           className="relative z-10 font-mono text-sm text-white/50 flex items-center justify-center gap-2"
         >
           <MapPin className="w-4 h-4 text-red-400" />
-          Lomas de Mantagua, Viña del Mar
+          Calle La Isla, parcela 6c. Quintero (Al frente de Sunshine)
         </motion.p>
         <p className="relative z-10 mt-2 text-white/30 text-xs font-body">
           DESPEDIDA DE SOLTEROS JPCC · ALAMICOS R.F.C · 20-22 Febrero 2026

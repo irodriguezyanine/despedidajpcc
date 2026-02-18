@@ -27,14 +27,14 @@ const jetbrainsMono = JetBrains_Mono({
 const siteUrl = "https://despedidajpcc.vercel.app";
 
 export const metadata: Metadata = {
-  title: "DESPEDIDA DE SOLTERO JPCC | ALAMICOS . Maitencillo 2026",
+  title: "DESPEDIDA DE SOLTERO JPCC | ALAMICOS . Quintero 2026",
   description: "CUENTA REGRESIVA: 20 - 22 Febrero 2026",
   icons: {
     icon: "/logo-alamicos.png",
     apple: "/logo-alamicos.png",
   },
   openGraph: {
-    title: "DESPEDIDA DE SOLTERO JPCC | ALAMICOS . Maitencillo 2026",
+    title: "DESPEDIDA DE SOLTERO JPCC | ALAMICOS . Quintero 2026",
     description: "CUENTA REGRESIVA: 20 - 22 Febrero 2026",
     url: siteUrl,
     siteName: "Despedida JPCC Alamicos",
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "DESPEDIDA DE SOLTERO JPCC | ALAMICOS . Maitencillo 2026",
+    title: "DESPEDIDA DE SOLTERO JPCC | ALAMICOS . Quintero 2026",
     description: "CUENTA REGRESIVA: 20 - 22 Febrero 2026",
     images: [`${siteUrl}/logo-alamicos.png`],
   },

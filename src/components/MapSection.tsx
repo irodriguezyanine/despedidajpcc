@@ -3,9 +3,9 @@
 import { motion } from "framer-motion";
 import { MapPin } from "lucide-react";
 
-// Lomas de Mantagua, Viña del Mar (cerca de Maitencillo) - Google Maps embed por búsqueda
+// Calle La Isla, parcela 6c. Quintero (Al frente de Sunshine) - Google Maps embed
 const MAP_EMBED_URL =
-  "https://www.google.com/maps?q=Lomas+de+Mantagua,+Vi%C3%B1a+del+Mar,+Chile&output=embed";
+  "https://www.google.com/maps?q=Calle+La+Isla+parcela+6c+Quintero+Chile&output=embed";
 
 export default function MapSection() {
   return (
@@ -19,7 +19,7 @@ export default function MapSection() {
           viewport={{ once: true }}
           className="font-display text-3xl sm:text-4xl md:text-5xl text-center mb-4 text-white"
         >
-          UBICACIÓN <span className="text-cyan-400">LOMAS DE MANTAGUA</span>
+          UBICACIÓN <span className="text-cyan-400">CALLE LA ISLA, QUINTERO</span>
         </motion.h2>
         <motion.p
           initial={{ opacity: 0 }}
@@ -28,7 +28,7 @@ export default function MapSection() {
           className="text-center text-white/70 font-body text-sm mb-8 flex items-center justify-center gap-2"
         >
           <MapPin className="w-4 h-4 text-cyan-400" />
-          Cerca de maitencillo - V Región
+          Parcela 6c · Al frente de Sunshine - Quintero, V Región
         </motion.p>
 
         <motion.div
@@ -45,7 +45,7 @@ export default function MapSection() {
             allowFullScreen
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
-            title="Mapa Lomas de Mantagua, Viña del Mar"
+            title="Mapa Calle La Isla, parcela 6c, Quintero"
             className="w-full h-full min-h-[300px]"
           />
         </motion.div>

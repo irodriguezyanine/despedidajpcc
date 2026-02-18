@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { Share2 } from "lucide-react";
 
-const TITLE = "Despedida de solteros JPCC | ALAMICOS · Lomas de Mantagua 2026";
-const TEXT = "20-22 Febrero · Lomas de Mantagua, Viña del Mar. ¡Nos vemos!";
+const TITLE = "Despedida de solteros JPCC | ALAMICOS · Quintero 2026";
+const TEXT = "20-22 Febrero · Calle La Isla, parcela 6c. Quintero (Al frente de Sunshine). ¡Nos vemos!";
 
 export default function ShareButton() {
   const [copied, setCopied] = useState(false);
