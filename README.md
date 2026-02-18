@@ -3,14 +3,14 @@
 Sitio web de la despedida de solteros de Juan Pablo (Juampi) — **ALAMICOS R.F.C** (Reggaeton Fútbol Club).
 
 - **Fecha:** 20-22 Febrero 2026  
-- **Destino:** Lomas de Mantagua, Viña del Mar (playa chilena, verano)
+- **Destino:** Calle La Isla, parcela 6c. Quintero (Al frente de Sunshine)
 
 ## Contenido
 
 - Cuenta regresiva hasta el 20 de febrero de 2026
 - Plantilla del equipo (nombre, apodo, número de camiseta)
 - Itinerario Viernes y Sábado
-- Mapa de ubicación (Lomas de Mantagua)
+- Mapa de ubicación (Calle La Isla, Quintero)
 - Reproductor Spotify (canción de la despedida)
 - Modal de bienvenida
 

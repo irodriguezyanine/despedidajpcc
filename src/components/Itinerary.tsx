@@ -109,7 +109,7 @@ export default function Itinerary() {
           transition={{ duration: 0.3 }}
           className="text-center text-white/60 font-body text-sm mb-12"
         >
-          20-22 Febrero 2026 · Lomas de Mantagua
+          20-22 Febrero 2026 · Calle La Isla, parcela 6c. Quintero
         </motion.p>
 
         <div className="grid md:grid-cols-2 gap-8">

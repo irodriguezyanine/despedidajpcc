@@ -65,7 +65,7 @@ export default function Hero() {
           <span className="text-white/60">·</span>
           <span className="inline-flex items-center gap-1.5">
             <MapPin className="w-4 h-4 text-teal-400" />
-            Lomas de Mantagua, Viña del Mar
+            Calle La Isla, parcela 6c. Quintero (Al frente de Sunshine)
           </span>
         </motion.p>
 
